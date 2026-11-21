@@ -1,0 +1,39 @@
+# Zapstore listing for ShakePortal. zsp reads this; run it with
+# scripts/zapstore.ps1 (see README.md, "Publish on Zapstore").
+
+# The signed APK is attached to each GitHub release (only the arm64 one)
+repository: https://github.com/galetaire/ShakePortal
+match: 'ShakePortal-.*-arm64-v8a\.apk$'
+
+name: ShakePortal
+summary: Handshake sites in Chrome, checked with DANE, on Wi-Fi and mobile data
+description: |
+  ShakePortal opens **Handshake** names (like `https://belikebill/`) in
+  Chrome on your phone, anywhere: at home, on any Wi-Fi and on mobile data.
+
+  Every Handshake site is checked with **DANE** before Chrome sees it, and
+  nothing is taken on trust:
+
+  - The name's on-chain record comes as a proof from Handshake peers,
+    checked against block headers the phone syncs and verifies itself.
+  - The site's DNS answers are checked with DNSSEC from that record.
+  - Sites with **Stateless DANE** certificates are verified from the
+    certificate alone.
+
+  How it works: the app's VPN only sets a proxy for the whole phone (it
+  routes no traffic). Ordinary sites go straight out as before. Handshake
+  sites go to a checking proxy inside the app, which re-signs them with a
+  local certificate authority you install once. That CA is created on your
+  phone and can only sign Handshake names, never .com or any other ICANN
+  name.
+
+  Chrome trusts user-installed CAs; Firefox needs "Use third party CA
+  certificates" turned on.
+website: https://github.com/galetaire/ShakePortal
+tags: [handshake, dns, dane, privacy, vpn]
+
+icon: ./art/icon.png
+images:
+  - ./art/screenshot-1.png
+  - ./art/screenshot-2.png
+release_notes: ./CHANGELOG.md

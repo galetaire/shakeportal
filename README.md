@@ -76,6 +76,37 @@ third party CA certificates" (Secret Settings) and DNS over HTTPS off.
 
 The APK is `app/build/outputs/apk/debug/app-debug.apk`.
 
+Release builds (`.\gradlew.bat assembleRelease`, giving
+`app/build/outputs/apk/release/app-release.apk`) are signed with the
+release key named in `keystore.properties` in the project folder. That file
+and the keystore are not in git: without them a release build comes out
+unsigned. Every published version must be signed with the same key, so keep
+a backup of both. A phone can't install a release build over a debug build
+(different keys): uninstall first.
+
+## Publish on Zapstore
+
+[Zapstore](https://zapstore.dev/) lists the app from its GitHub releases;
+`zapstore.yaml` holds the listing (text, icon, screenshots,
+`CHANGELOG.md` for the release notes). Its tool, zsp, has no Windows build,
+so `.\scripts\zapstore.ps1` runs it in Docker (the image is built once,
+checked against zapstore.dev's SHA-256).
+
+For each release:
+
+1. Raise `versionCode` and `versionName` in `app/build.gradle.kts`, add the
+   version to `CHANGELOG.md`.
+2. `.\gradlew.bat assembleRelease`, then create a GitHub release `vX.Y.Z`
+   with `app-release.apk` attached as `ShakePortal-X.Y.Z-arm64-v8a.apk`.
+3. `.\scripts\zapstore.ps1 publish`. It asks for the Nostr signer
+   (`bunker://...` or `nsec1...`) unless `$env:SIGN_WITH` is set.
+
+Once, before the first publish: `.\scripts\zapstore.ps1` (no arguments)
+starts zsp's wizard to claim the app, linking the APK signing key to your
+Nostr key. It asks for the keystore: `/keys/shakeportal-release.p12`, with
+the password from `keystore.properties`. Do this yourself, not through an
+AI agent. `.\scripts\zapstore.ps1 check` shows what Zapstore sees.
+
 The icon: the artwork is `art/icon.png`; after changing it, run
 `.\scripts\make-icon.ps1` to rebuild the launcher icon from it, then build.
 

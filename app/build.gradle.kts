@@ -1,6 +1,16 @@
+import java.util.Properties
+
 plugins {
     // Kotlin is built into the Android plugin since version 9
     id("com.android.application")
+}
+
+// Release signing: keystore.properties in the project folder (git-ignored)
+// names the keystore and its password. Without it, release builds come out
+// unsigned; debug builds use Android's debug key as always.
+val signingProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -25,9 +35,26 @@ android {
         }
     }
 
+    signingConfigs {
+        if (signingProps.isNotEmpty()) {
+            create("release") {
+                storeFile = file(signingProps.getProperty("storeFile"))
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+            // Phones only: Zapstore takes one arm64-v8a APK per release.
+            // Debug builds keep x86_64 too, for the emulator.
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
         }
     }
 

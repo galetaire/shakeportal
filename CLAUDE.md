@@ -78,6 +78,29 @@ refreshed checkpoint.
 - Package `io.github.galetaire.shakeportal` (was io.github.galetaire.fingertip until 21 Nov 2026: a new id, so the old app must be uninstalled), app name **"ShakePortal"** (renamed from Fingertip 21 Nov 2026; icon from art/icon.png as an adaptive icon, rebuilt with scripts/make-icon.ps1; Save CA writes ShakePortal-CA.crt; new CAs are "ShakePortal DANE (phone)", an existing CA is kept with its old name "Fingertip DANE (phone)"), version
   0.3.0 (versionCode 5), minSdk 29, targetSdk/compileSdk 35. No Android
   libraries: framework + Kotlin only, UI built in code.
+- **Release signing (21 Nov 2026, for Zapstore):** keystore
+  `C:\Users\Ismae\.shakeportal\shakeportal-release.p12` (PKCS12, alias
+  `shakeportal`, RSA 4096, 10,000 days, DN "CN=ShakePortal, O=galetaire",
+  certificate SHA-256 71f303cc60c24e3d8625b383935709877da8c3e0c228b07ce96af43f62b3fe54).
+  Release builds are arm64-v8a only (`ndk.abiFilters` in the release build
+  type; Zapstore takes one arm64 APK); debug keeps x86_64 for the emulator.
+  Its path and random password are in `keystore.properties` (project root,
+  git-ignored; a copy sits next to the keystore). app/build.gradle.kts signs
+  `assembleRelease` with it when that file exists. Never print the password;
+  never commit the keystore. The release APK (signature v2, arm64-v8a +
+  x86_64) passed the four test sites on the emulator. Losing the key means
+  no more updates on Zapstore under the same listing.
+- **Zapstore:** `zapstore.yaml` (repository + `match` on
+  `ShakePortal-X.Y.Z-arm64-v8a.apk` release assets, listing text, art/icon.png,
+  art/screenshot-1/2.png, CHANGELOG.md as release notes). zsp 2.0.1 has no
+  Windows build: `scripts/zapstore.ps1` runs it in Docker (image
+  `shakeportal-zsp:2.0.1` from scripts/zapstore/Dockerfile, Debian, binary
+  checked against zapstore.dev's SHA-256 1ef5373f…5b38). SIGN_WITH comes from
+  the environment or a hidden prompt; never handle it, the nsec or the
+  keystore password as an agent: zsp's own docs say the claim is done by
+  hand. `zsp check <apk>` on the 0.3.0 release APK: ok, no warnings, next
+  step "Prove the app is yours" (claim, requires_human). State 21 Nov 2026:
+  v0.3.0 GitHub release created; claim and first publish are the owner's.
 - **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
   off, Chrome sends every site through the VPN-set proxy and pages load. A
   VPN with only a narrow unused route is enough. (0.0.1 failed with

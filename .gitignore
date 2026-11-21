@@ -9,6 +9,12 @@ captures/
 *.apk
 *.aab
 
+# Release signing: the keystore and its password never go into the repo
+keystore.properties
+*.jks
+*.p12
+*.keystore
+
 # Built by scripts/build-go.ps1
 app/src/main/jniLibs/
 app/src/main/assets/icann-tlds.txt
