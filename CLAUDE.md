@@ -29,46 +29,83 @@ on Wi-Fi and mobile data alike, and Chrome honours it. The VPN tunnels
 nothing; it only carries the proxy setting. The proxy runs inside the app on
 the phone's loopback.
 
-## State: step 1 built and proven on the phone (0.0.2)
+## State: step 2 built (0.1.0), tested on the emulator, NOT yet on the phone
 
-- Repo: ~/Documents/GitHub/fingertip-android, branch main, `git init` done,
-  files staged, **nothing committed, no remote**. Commit/push only when the
-  owner asks.
+- Repo: ~/Documents/GitHub/fingertip-android, branch main, public on GitHub
+  (github.com/galetaire/fingertip-android, created 21 Nov 2026). Commit/push
+  only when the owner asks.
 - Package `io.github.galetaire.fingertip`, app name "Fingertip", version
-  0.0.1, minSdk 29, targetSdk/compileSdk 35. No libraries: Android framework
-  + Kotlin only, UI built in code (no XML layouts, no AndroidX).
-- Files (app/src/main/java/io/github/galetaire/fingertip/):
-  - `ProxyVpnService.kt`: VpnService; address 10.111.0.1/32, route only the
-    unused 10.111.0.0/24, `addDisallowedApplication(packageName)` (the
-    proxy's own connections go straight out), `setHttpProxy(127.0.0.1:8080)`.
-  - `LocalProxy.kt`: step 1 pass-through HTTP proxy on 127.0.0.1:8080 (loopback
-    only). CONNECT tunnels and plain-HTTP forwarding, logs every host. Checks
-    nothing: it only proves that traffic arrives.
-  - `MainActivity.kt`: Start / Stop / Clear buttons and the log.
-  - `EventLog.kt`: in-memory log (300 lines) with listeners.
-- Built successfully on 19 Nov 2026:
-  `app/build/outputs/apk/debug/app-debug.apk` (2.4 MB, debug-signed).
-- First phone test (0.0.1, 21 Nov 2026, mobile data): Chrome showed
-  `ERR_PROXY_CONNECTION_FAILED` and the log stayed empty after "Proxy
-  listening". So **Chrome does follow the VPN's proxy on mobile data**, but
-  could not reach it: `InetAddress.getLoopbackAddress()` is IPv6 `::1` on
-  Android, so the proxy listened on [::1]:8080 while apps were told
-  127.0.0.1. 0.0.2 binds 127.0.0.1 explicitly and logs the real address.
-- **Step 1 PROVEN (0.0.2, 21 Nov 2026):** on mobile data, Wi-Fi off, Chrome
-  sends every site through the VPN-set proxy (`HTTPS host:443` lines in the
-  log) and pages load. A VPN with only a narrow unused route is enough; no
-  default route or packet forwarding needed.
+  0.1.0 (versionCode 3), minSdk 29, targetSdk/compileSdk 35. No Android
+  libraries: framework + Kotlin only, UI built in code.
+- **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
+  off, Chrome sends every site through the VPN-set proxy and pages load. A
+  VPN with only a narrow unused route is enough. (0.0.1 failed with
+  `ERR_PROXY_CONNECTION_FAILED`: `InetAddress.getLoopbackAddress()` is IPv6
+  `::1` on Android, so bind 127.0.0.1 explicitly.)
+- Kotlin (app/src/main/java/io/github/galetaire/fingertip/):
+  - `ProxyVpnService.kt`: VPN (10.111.0.1/32, route only 10.111.0.0/24,
+    `addDisallowedApplication(packageName)`, `setHttpProxy(127.0.0.1:8080)`).
+    Starts DaneProxy with the network's DNS servers (LinkProperties of the
+    app's default network, which is the real one since the app is outside
+    the VPN) and restarts it when they change.
+  - `LocalProxy.kt`: the proxy apps get, 127.0.0.1:8080. ICANN names and IPs
+    pass straight through (resolved by Android, so Private DNS applies);
+    Handshake names are forwarded, request bytes as received, to the DANE
+    proxy on 127.0.0.1:8081. Logs `HTTPS host` / `HNS host → DANE proxy`.
+  - `IcannTlds.kt`: Handshake name = TLD not in assets/icann-tlds.txt and not
+    special-use.
+  - `DaneProxy.kt`: runs `libfingertipd.so` from nativeLibraryDir with
+    ProcessBuilder (`-listen 127.0.0.1:8081 -data files/dane -tlds ... -dns
+    ...`, env SSL_CERT_DIR=/apex/com.android.conscrypt/cacerts:/system/etc/
+    security/cacerts), its output into the log; stops it by closing stdin.
+  - `MainActivity.kt`: Start / Stop / Clear / Save CA certificate (copies
+    files/dane/ca/ca.crt to Downloads as Fingertip-CA.crt via MediaStore;
+    apps cannot install CAs themselves since Android 11) and the log.
+  - Manifest: INTERNET, ACCESS_NETWORK_STATE (needed for LinkProperties).
+- Go (`go/`, module github.com/galetaire/fingertip-android/go, package main,
+  letsdane v0.6.1, deps upgraded with `go get -u`):
+  - `main.go`: flags, name-constrained CA in <data>/ca (from Dit), letsdane
+    handler (Validity 1h, Constraints = ICANN list), loopback-only listener,
+    `-dns` servers for its own lookups, exits when stdin closes.
+  - `onchain.go`: TLD record from the proof services
+    (`<service>/proofs/<tld>?urkel`, sdaneproofs.htools.work and
+    sdaneproofs.woodburn.au), Urkel proof verified against the root it
+    names; **interim root rule: every answering service must give the same
+    root and record** (one service alone is accepted and labelled). Cached
+    1 h (absence 10 min).
+  - `resolver.go`: letsdane's Resolver interface. Own iterative,
+    non-recursive resolver from the on-chain nameservers (GLUE/SYNTH/NS,
+    `_<base32hex>._synth.` names), follows referrals, validates DNSKEY from
+    the on-chain DS, child DS from the parent, answers from the zone keys;
+    a signed zone that fails is an error (fail closed). NSEC denial and
+    DS-less delegations are not proven: they only make answers insecure.
+  - `hns.go` (name state + resource with NS/glue/synth), `urkel.go` (Dit's
+    MIT port), `dnssec.go` (verifySet/dsMatches from Dit).
+  - Tests: CA constraints, TLD list, resource parsing, root agreement, an
+    in-memory signed TLD with delegation (tampered answer, stripped
+    signature, wrong DS all refused), and `TestResolverLive`
+    (FINGERTIP_LIVE=1): belikebill, just.belikebill, nathan.woodburn and
+    hnsdoh all get a TLSA proven from the on-chain DS (21 Nov 2026).
+- **Emulator test (21 Nov 2026, Android 17 x86_64):** app starts the Go
+  binary (no seccomp problem with a static GOOS=linux binary), creates the
+  CA; a probe client through 127.0.0.1:8080 got all four test sites with
+  certificates issued by "Fingertip DANE (phone)" and HTTP 200, example.com
+  with its real certificate. Save CA writes Downloads/Fingertip-CA.crt
+  (22 KB: the ~1,440 excluded names).
+- **hnsdoh.com's DoH was down on 21 Nov 2026** (502 from its openresty for
+  every query), and so were all other public Handshake DoH servers tried
+  (query.hdns.io 500, doh.hnsdns.com 503, easyhandshake.com, hnsns.net,
+  doh.hns.is). That is why the app resolves names itself.
 
-### The step 1 test (owner does it, then reports)
+### The step 2 test (owner does it, then reports)
 
-Install the APK by copying it to the phone (owner's preferred way, no adb).
-Wi-Fi off → Fingertip → Start → accept the VPN request → browse in Chrome
-(example.com, wikipedia.org) → sites must appear in the app log as
-`HTTPS host:443`. If yes: browsers follow the VPN's proxy on mobile data and
-step 2 builds on it. If the log stays empty while pages load: they bypass it
-(possible cause to check first: Android may only apply a VPN's proxy when
-the VPN carries a default route; then the VPN would need to route 0.0.0.0/0
-and forward packets, a much bigger job).
+Install the new APK over the old one. Start → Save CA certificate → install
+it (Settings → Security & privacy → More security settings → Encryption &
+credentials → Install a certificate → CA certificate → Fingertip-CA.crt).
+Then on mobile data in Chrome: `https://belikebill/`, `https://nathan.woodburn/`,
+`https://hnsdoh/`, `https://just.belikebill/` must load without warnings,
+and the log must show `TLSA proven from the on-chain DS`. Chrome may need
+the trailing slash for single-word names.
 
 ## Build environment (Windows 11 PC)
 
@@ -90,119 +127,84 @@ and forward packets, a much bigger job).
   owner tends to close it. Go is NOT installed on Windows: Go work so far ran
   in `golang:1.26-alpine` containers. Python is not installed; use Node or
   PowerShell for scripts.
+- Go program for the app: `.scriptsuild-go.ps1` (`-Live` adds the
+  network tests, `-Update` upgrades deps) runs scripts/build-go.sh in
+  golang:1.26-alpine with the module cache in the `fingertip-gomod` volume.
+  Run it before gradlew whenever go/ changes; its outputs are git-ignored.
+  PowerShell 5.1 mangles quotes passed to docker, hence the .sh file.
+- Emulator for testing (owner tests on the real phone): AVD
+  `Medium_Phone_API_37.0` (Android 17, x86_64, WHPX works):
+  `emulator -avd Medium_Phone_API_37.0 -no-window -no-audio -no-boot-anim
+  -no-snapshot-save -gpu swiftshader_indirect` in the background, then adb
+  (in Git Bash set MSYS_NO_PATHCONV=1). `adb shell appops set
+  io.github.galetaire.fingertip ACTIVATE_VPN allow` skips the VPN dialog;
+  find buttons with `uiautomator dump`; `run-as` works (debug build). A
+  probe client (CONNECT through 127.0.0.1:8080, TLS verified against the
+  app's CA) was built in the scratchpad for the 21 Nov test.
 - The shell is Git Bash or PowerShell. In Git Bash, `docker run -v` paths
   need `MSYS_NO_PATHCONV=1`.
 
 ## Plan
 
-Strategy changed on 21 Nov 2026: **SANE first, plain DANE as fallback, no
-hnsd on the phone.** SANE (Stateless DANE, HIP-0017) lets the phone verify a
-site from proofs carried in its own certificate, checked offline against
-Handshake tree roots, so verification needs no trusted resolver and no live
-lookups. That is what makes a light client possible away from home. Castell
-(galetaire/castell) already embeds these proofs for the owner's sites
-(e.g. `belikebill`); almost no other Handshake site does yet, hence the
-fallback.
+Strategy as of 21 Nov 2026: **no Handshake resolver and no hnsd on the
+phone.** The phone resolves Handshake names itself from on-chain data
+(proof services for the TLD's record, the site's own nameservers, DNSSEC
+checked locally), which makes plain DANE trustless. Stateless DANE (HIP-17,
+proofs in the certificate) comes on top once the phone has its own tree
+roots. History: the plan first was letsdane + hnsd, then SANE-first with
+DoH fallback; hnsdoh being down on 21 Nov 2026 led to this design.
 
-1. **Step 1 (done, proven 21 Nov 2026):** prove the VPN-set proxy is used on mobile
-   data (above). Neither SANE nor DANE helps if Chrome ignores it: Chrome
-   understands neither, so the phone always needs the intercepting proxy
-   that re-signs with the local CA.
-2. **Step 2: the verifying proxy on the phone.** Replace `LocalProxy` with a
-   Go proxy built for Android with gomobile (an .aar). Keep the letsdane
-   base and Dit's design (Dit repo, `docker/dane/main.go`) for everything
-   except how a site is verified:
-   - letsdane **v0.6.1** as a Go library (buffrr/letsdane, Apache-2.0, quiet
-     since Feb 2024; last tagged release v0.5.0 has no binaries), with its
-     old dependencies (miekg/dns, golang.org/x/*) upgraded: Dit uses Go 1.26
-     and latest deps, govulncheck clean.
-   - Local CA with **name constraints excluding every ICANN TLD** (IANA list
-     https://data.iana.org/TLD/tlds-alpha-by-domain.txt, refreshed at build;
-     plus special-use names local, localhost, onion, test, invalid, example,
-     internal, alt, home.arpa) so a leaked CA cannot sign gmail.com. Dit's
-     `main_test.go` proves leaves for www.com are rejected.
-   - Settings: Validity 1h, SkipNameChecks false, Constraints = the ICANN
-     list (ICANN names are tunnelled without any checks).
-   - No PAC with a VPN proxy, so everything goes through the proxy: ICANN
-     traffic must be passed through efficiently.
-   - **Verifier, in order:**
-     1. **SANE:** if the site's certificate carries the HIP-17 proofs (urkel
-        proof of the name + DNSSEC chain to TLSA), verify them offline
-        against the stored tree roots. Strongest result, no lookups; only
-        the untrusted address lookup, over encrypted DNS.
-     2. **SANE with proofs from a service:** if the certificate carries
-        none, fetch the same two proofs from a public proof service
-        (sdaneproofs.htools.work, sdaneproofs.woodburn.au) and verify them
-        the same way. Just as strong (the service is not trusted, every step
-        is checked), but the service learns the name. Services answer HTTP
-        500 for names without TLSA, and fail for some DNS hosts.
-     3. **Fallback, plain DANE over DoH** (hnsdoh.com): TLSA from a public
-        Handshake resolver, trusting its answer. Weaker (trusts the
-        resolver, which also sees the names), but works anywhere.
-     4. **Strict mode** (user option): no step 3, refuse what steps 1–2
-        cannot verify.
-
-     Every SANE result must end with Dit's "key" step: the certificate the
-     site serves matches a proven TLSA record (usage 3, or 2 on the chain),
-     otherwise proofs could be replayed on another server. The app shows per
-     site which path verified it ("SANE", "SANE via service", "via
-     resolver").
-   - **Where the SANE code comes from: Dit's checker** (Dit repo,
-     `docker/dane/`, v0.6.0, 21 Nov 2026), ~1,000 lines of Go to move into
-     the gomobile library: `urkel.go` (own MIT port of handshake-org/urkel's
-     proof verifier; nodech/go-hsd-utils has no licence, do not use),
-     `hns.go` (name state, DS from hsd resource records), `dnssecchain.go`
-     (offline chain check, only trust anchor = the on-chain DS, delegation
-     to child zones supported), `sitecert.go` (proofs from the served
-     certificate + the key step). Pure Go + miekg/dns, no cgo, so it should
-     build for Android. `check.go` is the CLI/JSON wrapper: keep the step
-     list, drop the CLI. Tests with real proofs in `testdata/` (fixed date
-     20 Nov 2026) come along. Already VERIFIED on the Umbrel: `belikebill`
-     and `just.belikebill` from their own certificates, `nathan.woodburn`
-     and `hnsdoh` via the services.
-   - Not randomlogin/sane or htools-org/stateless-dane: unmaintained since
-     2024, usage 3 only, and sane still looks up TLSA via a resolver.
-3. **Step 3: tree-root sync**, the open design question (it replaces
-   "hnsd or DoH?"). A tree root changes every 36 blocks (~6 h). Proof
-   services and Castell anchor to the root from ~8 days ago (HIP-17's 32nd
-   most recent), so the phone needs **about two weeks of roots** (Dit keeps
-   16 days and refuses roots older than 15; a 7-day window fails). That is
-   ~64 roots, a few KB, but their source sets the trust model. (Dit gets
-   them from its own hnsd's header log, `docker/web/lib/treeroots.js`; the
-   phone has no hnsd.) Options:
-   - (a) Download them from one server (owner's or Dit's): simplest, but
-     that server is trusted, much weaker than proof of work.
-   - (b) Sync only block headers from Handshake peers (SPV, no name
-     queries): keeps the proof-of-work trust model, leaks no names, costs
-     some data and peer connections, far less than full hnsd.
-   - (c) Fetch headers from any server and check them on the phone: two
-     weeks is ~2,000 headers, roughly 0.5 MB, checked for proof of work and
-     for linking into one chain from a checkpoint built into the app.
-     Trust close to (b) without peer connections. Probably the best fit.
+1. **Step 1 (done, proven 21 Nov 2026):** the VPN-set proxy is used on
+   mobile data.
+2. **Step 2 (built, 0.1.0; phone test pending):** the verifying proxy, as
+   described in State. Next small things after the phone test:
+   - per-site result in the UI (verified / not a DANE site / refused);
+   - the CA's fingerprint on screen, to compare with Settings;
+   - QUIC: Chrome with a proxy uses TCP only, nothing to do; check other
+     browsers.
+3. **Step 3: tree roots, so a root is checked, not just agreed on.** The
+   last trust left. A root changes every 36 blocks (~6 h); proofs anchor to
+   the root ~8 days old (HIP-17's 32nd most recent), so keep ~2 weeks (Dit
+   keeps 16 days, refuses >15). Options:
+   - (a) roots from one server: no better than today's agreement rule;
+   - (b) block headers from Handshake peers (SPV, no name queries): costs
+     peer connections;
+   - (c) **preferred:** ~2,000 headers (~0.5 MB) from any server, checked on
+     the phone for proof of work and for linking into one chain from a
+     checkpoint built into the app. Then onchain.go accepts only proofs
+     whose root is in that chain and recent enough.
+4. **Step 4: Stateless DANE from the certificate** (needs step 3): when a
+   site's certificate carries the HIP-17 proofs (OIDs
+   1.3.6.1.4.1.54392.5.1620/1621; Castell embeds them, see below), verify
+   them offline with Dit's `dnssecchain.go` + `sitecert.go` (not copied yet)
+   instead of asking the nameservers: no lookups beyond the address, and
+   works when a site's nameservers are unreachable. Must end with Dit's
+   "key" step (served certificate matches the proven TLSA), which letsdane's
+   own check provides when the proven TLSA is returned to it.
 
 ### What Castell embeds (checked 21 Nov 2026, Castell 0.4.0, `docker/web/lib/sdane.js`)
 
-- **Yes, the full chain.** Two non-critical extensions:
+- **The full chain.** Two non-critical extensions:
   - OID 1.3.6.1.4.1.54392.5.1620: the Urkel proof of the TLD (its on-chain
     state with its DS records), fetched from the proof services.
   - OID 1.3.6.1.4.1.54392.5.1621: the DNSSEC chain. 2 bytes port (443), 2
     bytes lifetime (0), then wire-format RRs: TLSA set + its RRSIGs, the
     zone's DNSKEY set + its RRSIGs, and the DS set. Castell builds it from
     the site's own DNS host and checks every signature first.
-- So a client can verify a Castell site with **no lookups at all** apart
-  from the untrusted address lookup. Castell refreshes the proofs daily.
-- Limit: Castell builds chains only for names inside the TLD's zone, not for
-  delegated subzones (Dit's verifier handles delegation if another site
-  sends one).
+- Castell refreshes the proofs daily; chains only for names inside the
+  TLD's zone, not delegated subzones.
 
-### Open questions to check before building step 2
+### Open questions
 
 - **HIP-17 is a draft:** its certificate extension IDs are "to be defined".
   If they change, Castell and this app change together (owner controls
   both).
-- hnsd for Android (pinned commit 0cb70e5, with the patch below) is **no
-  longer planned**; keep the notes in case option (b) above ends up reusing
-  hnsd's header sync.
+- The proof services are a dependency for every new TLD (cached 1 h). If
+  both are down, Handshake names fail; ICANN browsing is unaffected.
+- Expired or revoked names: the name state's other fields (renewal height,
+  revoked) are not read yet.
+- hnsd for Android is **not planned**; its notes below stay in case option
+  (b) of step 3 reuses hnsd's header sync.
 
 ## Lessons from Dit that apply here
 

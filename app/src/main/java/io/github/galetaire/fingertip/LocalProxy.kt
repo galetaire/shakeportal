@@ -10,14 +10,20 @@ import java.net.Socket
 import kotlin.concurrent.thread
 
 /**
- * Step 1 of the prototype: a plain pass-through HTTP proxy on the phone's
- * loopback that logs every site it is asked for. It checks nothing; its only
- * job is to show whether browsers really send their traffic through the
- * proxy that the VPN sets, also on mobile data.
- *
- * Step 2 replaces it with the DANE proxy (letsdane, compiled from Go).
+ * The proxy the VPN hands to every app, on the phone's loopback. It looks at
+ * each site name:
+ *  - ICANN names (and IP addresses) go straight out, resolved by Android as
+ *    usual: the proxy only passes the bytes through.
+ *  - Handshake names go to the DANE proxy ([DaneProxy], Go) on [danePort],
+ *    which resolves them, checks their TLSA record and re-signs them with the
+ *    local CA.
+ * It logs every site, so the log shows what went where.
  */
-class LocalProxy(private val port: Int) {
+class LocalProxy(
+    private val port: Int,
+    private val danePort: Int,
+    private val isHandshake: (String) -> Boolean,
+) {
     @Volatile private var server: ServerSocket? = null
 
     val running: Boolean get() = server?.isClosed == false
@@ -62,6 +68,11 @@ class LocalProxy(private val port: Int) {
                 if (parts[0].equals("CONNECT", ignoreCase = true)) {
                     // HTTPS: "CONNECT host:443 HTTP/1.1"
                     val (host, port) = splitHostPort(parts[1], 443)
+                    if (isHandshake(host)) {
+                        EventLog.add("HNS    $host:$port → DANE proxy")
+                        toDaneProxy(client, head)
+                        return
+                    }
                     EventLog.add("HTTPS  $host:$port")
                     val remote = Socket()
                     remote.connect(InetSocketAddress(host, port), 10_000)
@@ -77,6 +88,11 @@ class LocalProxy(private val port: Int) {
                     val hostPort = url.removePrefix("http://").substringBefore("/")
                     val path = "/" + url.removePrefix("http://").substringAfter("/", "")
                     val (host, port) = splitHostPort(hostPort, 80)
+                    if (isHandshake(host)) {
+                        EventLog.add("HNS    http://$host$path".take(120) + " → DANE proxy")
+                        toDaneProxy(client, head)
+                        return
+                    }
                     EventLog.add("HTTP   $host$path".take(120))
                     val remote = Socket()
                     remote.connect(InetSocketAddress(host, port), 10_000)
@@ -90,6 +106,27 @@ class LocalProxy(private val port: Int) {
             } catch (e: Exception) {
                 EventLog.add("Error: ${e.message}".take(160))
             }
+        }
+    }
+
+    /**
+     * Hands the whole request, as received, to the DANE proxy and connects
+     * the two. It answers the browser itself (also the "200" of a CONNECT).
+     */
+    private fun toDaneProxy(client: Socket, head: String) {
+        val remote = Socket()
+        try {
+            remote.connect(InetSocketAddress(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), danePort), 5_000)
+        } catch (e: Exception) {
+            EventLog.add("Error: DANE proxy not reachable (${e.message})".take(160))
+            client.getOutputStream().write("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n".toByteArray())
+            remote.close()
+            return
+        }
+        remote.use {
+            remote.getOutputStream().write(head.toByteArray(Charsets.ISO_8859_1))
+            client.soTimeout = 0
+            pipe(client, remote)
         }
     }
 

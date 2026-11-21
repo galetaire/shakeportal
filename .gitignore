@@ -8,3 +8,7 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Built by scripts/build-go.ps1
+app/src/main/jniLibs/
+app/src/main/assets/icann-tlds.txt

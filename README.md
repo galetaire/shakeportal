@@ -1,8 +1,8 @@
 # fingertip-android
 
-Exploring a Handshake + DANE client for Android: the phone counterpart of
-[Dit](https://github.com/galetaire/dit) for when you are away from home,
-in the spirit of Fingertip on the desktop.
+Handshake sites on your Android phone, away from home, checked with DANE:
+the phone counterpart of [Dit](https://github.com/galetaire/dit), in the
+spirit of Fingertip on the desktop.
 
 ## Why
 
@@ -12,49 +12,62 @@ mobile data neither is reachable. Android has no proxy setting for mobile
 data, but a **VPN app can set a system proxy** that applies everywhere
 (`VpnService.Builder.setHttpProxy`, Android 10+). This app uses that.
 
-## Plan
+## How it works
 
-1. **Step 1 (this prototype):** a VPN app that tunnels nothing and only sets
-   the system proxy to a small pass-through proxy inside the app
-   (`127.0.0.1:8080`), which logs every site it is asked for. Question to
-   answer: does Chrome on mobile data really go through it?
-2. **Step 2:** replace that proxy with the DANE proxy: letsdane (Go, as in
-   Dit's `docker/dane`), built for Android with gomobile, with the same
-   name-constrained local CA. Resolution through hnsd built for Android, or a
-   Handshake DoH resolver for addresses plus hnsd for verification.
-3. **Later:** Stateless DANE (HIP-0017, as in randomlogin/sane) for sites that
-   carry their proofs, on top of plain DANE.
+- **The VPN** tunnels nothing: it only sets the system proxy to
+  `127.0.0.1:8080`, a small proxy inside the app.
+- **That proxy** sends ICANN names (example.com, google.com) straight out,
+  resolved by Android as usual. Handshake names (`belikebill/`,
+  `nathan.woodburn/`) go to the **DANE proxy** on `127.0.0.1:8081`.
+- **The DANE proxy** (`go/`, built on
+  [letsdane](https://github.com/buffrr/letsdane)) resolves the name itself:
+  1. the top-level name's on-chain record (its DS records and nameservers)
+     comes from the public Stateless DANE proof services, as an Urkel proof
+     that is checked on the phone;
+  2. the site's nameservers are asked directly;
+  3. every answer is checked with DNSSEC from the on-chain DS.
+
+  No Handshake resolver is trusted, and no hnsd runs on the phone. When the
+  site's TLSA record is proven, the proxy checks the site's certificate
+  against it and re-signs the connection with a local CA.
+- **The local CA** is created on the phone at first start. Its name
+  constraints exclude every ICANN top-level domain, so it can never sign a
+  certificate for gmail.com or a bank, even if its key leaked.
+
+Not finished yet: the proof services' tree root is accepted when they agree
+with each other. Checking it against Handshake block headers is the next step.
+
+## Use
+
+1. Copy `app-debug.apk` to the phone and install it.
+2. Open Fingertip → **Start** → accept Android's VPN request.
+3. Once: tap **Save CA certificate**, then install it in Settings → Security
+   & privacy → More security settings → Encryption & credentials → Install a
+   certificate → CA certificate → `Fingertip-CA.crt` (in Downloads).
+4. Browse Handshake sites in Chrome, on Wi-Fi or mobile data. The log shows
+   each site and how it was checked.
+
+Chrome trusts user-installed CAs; most other apps do not. Firefox needs "Use
+third party CA certificates" (Secret Settings) and DNS over HTTPS off.
 
 ## Build
 
-Gradle 9.9.1 (wrapper included), Android Gradle plugin 9.5.1 with its
-built-in Kotlin, compileSdk 35. Runs on Android Studio's own Java (25); no
-separate JDK needed.
-
-- Android Studio: open this folder, let it sync, then Build → Build App
-  Bundle(s) / APK(s) → Build APK(s).
-- Command line (Windows), with Android Studio installed:
-  `set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` then
-  `gradlew.bat assembleDebug`.
+- The DANE proxy (Go, in Docker, as Go is not needed on the PC):
+  `.\scripts\build-go.ps1` (add `-Live` to also test against real Handshake
+  names). It writes `app/src/main/jniLibs/*/libfingertipd.so` and
+  `app/src/main/assets/icann-tlds.txt` (IANA's list, fresh).
+- The app: Gradle 9.9.1 (wrapper included), Android Gradle plugin 9.5.1 with
+  its built-in Kotlin, compileSdk 35, on Android Studio's own Java:
+  `$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat assembleDebug`
 
 The APK is `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Test step 1
-
-1. Copy `app-debug.apk` to the phone and install it (allow "install unknown
-   apps" for the app you open it with).
-2. Turn **Wi-Fi off**, so the phone is on mobile data.
-3. Open Fingertip → **Start** → accept Android's VPN request. A key icon
-   appears in the status bar.
-4. In Chrome, open a few sites (`https://example.com`, `https://wikipedia.org`).
-5. Back in Fingertip: each site should be listed as `HTTPS host:443`.
-
-If sites appear, browsers follow the VPN's proxy on mobile data and step 2 can
-build on it. If the list stays empty while pages load, they bypass it.
-
 ## Notes
 
-- No libraries: only the Android framework and Kotlin. minSdk 29 (Android 10).
-- The proxy only listens on the phone's loopback.
+- No Android libraries: only the framework and Kotlin. minSdk 29 (Android 10).
+- Both proxies listen only on the phone's loopback.
 - The VPN routes only an unused private range (10.111.0.0/24); this app is
-  excluded from it.
+  excluded from it, so the proxies' own connections go straight out.
+- The DANE proxy runs as a child process (a static Linux binary, shipped as a
+  native library so Android lets the app run it), not through gomobile: no
+  Android NDK needed.
