@@ -316,10 +316,10 @@ func TestSynthIP(t *testing.T) {
 
 // ---------- live, against the real chain and nameservers ----------
 
-// Needs the network: run with FINGERTIP_LIVE=1 (build-go.ps1 -Live)
+// Needs the network: run with SHAKEPORTAL_LIVE=1 (build-go.ps1 -Live)
 func TestResolverLive(t *testing.T) {
-	if os.Getenv("FINGERTIP_LIVE") != "1" {
-		t.Skip("set FINGERTIP_LIVE=1 to resolve real Handshake names")
+	if os.Getenv("SHAKEPORTAL_LIVE") != "1" {
+		t.Skip("set SHAKEPORTAL_LIVE=1 to resolve real Handshake names")
 	}
 	r := newHNSResolver(newOnChain(defaultServices, &http.Client{Timeout: 15 * time.Second}), func(name string) bool {
 		switch tldOf(name) {

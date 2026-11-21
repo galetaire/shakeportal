@@ -1,4 +1,4 @@
-package io.github.galetaire.fingertip
+package io.github.galetaire.shakeportal
 
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -19,6 +19,11 @@ object EventLog {
             lines.addLast("${time.format(Date())}  $message")
             while (lines.size > MAX) lines.removeFirst()
         }
+        changed()
+    }
+
+    /** Tells the screen to redraw (also for [SiteResults]) */
+    fun changed() {
         val toCall = synchronized(listeners) { listeners.toList() }
         toCall.forEach { it() }
     }

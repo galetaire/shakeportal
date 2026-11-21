@@ -4,7 +4,7 @@ package main
 // headers at build time, so the phone has the tree roots that proofs use
 // (up to ~15 days old) without downloading the chain.
 //
-// It is made by `fingertipd -make-checkpoint go/checkpoint.bin` (build-go.ps1
+// It is made by `shakeportald -make-checkpoint go/checkpoint.bin` (build-go.ps1
 // -Checkpoint), which does not trust the peers either: it starts from one of
 // hsd's own hardcoded checkpoints, downloads every header from there to the
 // tip, checks each one fully (work, retargeting, time), requires the chain

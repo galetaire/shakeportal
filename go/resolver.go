@@ -1,6 +1,6 @@
 package main
 
-// Fingertip's own Handshake resolver: no Handshake resolver, no hnsd, no
+// ShakePortal's own Handshake resolver: no Handshake resolver, no hnsd, no
 // peers. For a name under the top-level name T:
 //
 //  1. T's on-chain record comes from the proof services (onchain.go): its DS
@@ -64,9 +64,12 @@ type hnsResolver struct {
 	now      func() time.Time
 	logf     func(format string, a ...any)
 
+	report func(site, status, detail string)
+
 	mu      sync.Mutex
 	keys    map[string]keyEntry
 	answers map[rrsetKey]*answer
+	sane    map[string]*saneEntry
 }
 
 func newHNSResolver(chain *onChain, isICANN func(string) bool) *hnsResolver {
@@ -79,8 +82,10 @@ func newHNSResolver(chain *onChain, isICANN func(string) bool) *hnsResolver {
 		exchange: exchangeDNS,
 		now:      time.Now,
 		logf:     func(string, ...any) {},
+		report:   func(string, string, string) {},
 		keys:     map[string]keyEntry{},
 		answers:  map[rrsetKey]*answer{},
+		sane:     map[string]*saneEntry{},
 	}
 }
 
@@ -155,19 +160,42 @@ func (r *hnsResolver) LookupTLSA(ctx context.Context, service, proto, name strin
 	if net.ParseIP(strings.TrimSuffix(name, ".")) != nil || r.isICANN(name) {
 		return nil, false, nil
 	}
+	site := strings.ToLower(strings.TrimSuffix(name, "."))
+	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
+
+	// 1. Stateless DANE: proofs in the site's own certificate
+	if service == "443" {
+		tlsa, how, err := r.saneTLSA(ctx, site)
+		if err == nil && len(tlsa) > 0 {
+			r.report(site, siteVerifiedSANE, "TLSA proven from the proofs in its own certificate ("+how+")")
+			return tlsa, true, nil
+		}
+		if err != nil && !errors.Is(err, errNoCertProofs) && ctx.Err() == nil {
+			r.logf("%s: certificate proofs not usable (%v), asking its nameservers", site, err)
+		}
+	}
+
+	// 2. Ask the site's nameservers, checked from the on-chain DS
 	tlsaName, err := dns.TLSAName(dns.Fqdn(name), service, proto)
 	if err != nil {
 		return nil, false, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
-	defer cancel()
 	a, err := r.resolve(ctx, tlsaName, dns.TypeTLSA, 0)
 	if errors.Is(err, errNXDomain) {
-		r.logf("%s: no TLSA record, not a DANE site", name)
+		if rec, _ := r.chain.lookup(ctx, tldOf(name)); rec != nil && !rec.Exists {
+			r.report(site, siteFailed, "no such name on the Handshake chain")
+		} else {
+			r.report(site, siteNotDANE, "no TLSA record")
+		}
 		return nil, false, nil
 	}
 	if err != nil {
-		r.logf("%s: REFUSED, %v", name, err)
+		if isBogus(err) {
+			r.report(site, siteRefused, err.Error())
+		} else {
+			r.report(site, siteFailed, err.Error())
+		}
 		return nil, false, err
 	}
 	var out []*dns.TLSA
@@ -178,11 +206,13 @@ func (r *hnsResolver) LookupTLSA(ctx context.Context, service, proto, name strin
 	}
 	switch {
 	case len(out) == 0:
-		r.logf("%s: no TLSA record, not a DANE site", name)
+		r.report(site, siteNotDANE, "no TLSA record")
+	case a.secure && strings.Contains(a.how, "NOT checked"):
+		r.report(site, siteVerifiedUnchecked, "TLSA proven from the on-chain DS ("+a.how+")")
 	case a.secure:
-		r.logf("%s: TLSA proven from the on-chain DS (%s)", name, a.how)
+		r.report(site, siteVerified, "TLSA proven from the on-chain DS ("+a.how+")")
 	default:
-		r.logf("%s: TLSA found but not signed, so not used", name)
+		r.report(site, siteUnsigned, "TLSA record found but not signed, so not used")
 	}
 	return out, a.secure, nil
 }
@@ -301,7 +331,7 @@ func (r *hnsResolver) resolve(ctx context.Context, qname string, qtype uint16, d
 				setSecure = ok
 				if ok {
 					if err := verifySet(set, sigs[rrsetKey{qname, rtype}], signer, signerKeys, now); err != nil {
-						return nil, fmt.Errorf("%s %s: %w", strings.TrimSuffix(qname, "."), dns.TypeToString[rtype], err)
+						return nil, fmt.Errorf("%s %s: %w", strings.TrimSuffix(qname, "."), dns.TypeToString[rtype], asBogus(err))
 					}
 				}
 			}
@@ -327,7 +357,7 @@ func (r *hnsResolver) resolve(ctx context.Context, qname string, qtype uint16, d
 					secure = false
 				} else {
 					if err := verifySet(childDS, authSigs[rrsetKey{child, dns.TypeDS}], zone, keys, now); err != nil {
-						return nil, fmt.Errorf("delegation to %s: %w", strings.TrimSuffix(child, "."), err)
+						return nil, fmt.Errorf("delegation to %s: %w", strings.TrimSuffix(child, "."), asBogus(err))
 					}
 					ds = nil
 					for _, rr := range childDS {
@@ -379,7 +409,7 @@ func (r *hnsResolver) signerKeys(ctx context.Context, zone string, keys []*dns.D
 		return signer, nil, false, nil
 	}
 	if err := verifySet(childDS, sigsDS[rrsetKey{signer, dns.TypeDS}], zone, keys, r.now()); err != nil {
-		return "", nil, false, fmt.Errorf("DS of %s: %w", strings.TrimSuffix(signer, "."), err)
+		return "", nil, false, fmt.Errorf("DS of %s: %w", strings.TrimSuffix(signer, "."), asBogus(err))
 	}
 	var ds []*dns.DS
 	for _, rr := range childDS {
@@ -420,14 +450,14 @@ func (r *hnsResolver) zoneKeys(ctx context.Context, zone string, servers []strin
 		}
 	}
 	if len(all) == 0 {
-		return nil, errors.New("the zone sent no DNSKEY records")
+		return nil, asBogus(errors.New("the zone sent no DNSKEY records"))
 	}
 	if len(anchored) == 0 {
-		return nil, errors.New("no DNSKEY matches the DS record")
+		return nil, asBogus(errors.New("no DNSKEY matches the DS record"))
 	}
 	now := r.now()
 	if err := verifySet(set, sigs[rrsetKey{zone, dns.TypeDNSKEY}], zone, anchored, now); err != nil {
-		return nil, fmt.Errorf("DNSKEY set: %w", err)
+		return nil, fmt.Errorf("DNSKEY set: %w", asBogus(err))
 	}
 	ttl := minTTL(set)
 	for _, sig := range sigs[rrsetKey{zone, dns.TypeDNSKEY}] {

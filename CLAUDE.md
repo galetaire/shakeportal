@@ -1,4 +1,4 @@
-# fingertip-android: project context
+# ShakePortal (formerly fingertip-android): project context
 
 Handoff notes from the Dit session (16–19 Nov 2026). This file records the
 goal, what is built, what has been learned and what comes next. README.md
@@ -29,24 +29,61 @@ on Wi-Fi and mobile data alike, and Chrome honours it. The VPN tunnels
 nothing; it only carries the proxy setting. The proxy runs inside the app on
 the phone's loopback.
 
-## State: step 3 built and proven on the phone (0.2.0)
+## State: 0.3.0 proven on the phone (21 Nov 2026), as ShakePortal
 
-Steps 1–3 are proven on the phone (21 Nov 2026): on mobile data, Handshake
-sites load in Chrome, checked with DANE, with every tree root checked
-against block headers the phone synced and verified itself.
+Steps 1–3 are proven on the phone (0.2.0, 21 Nov 2026): on mobile data,
+Handshake sites load in Chrome, checked with DANE, with every tree root
+checked against block headers the phone synced and verified itself.
 
-- Repo: ~/Documents/GitHub/fingertip-android, branch main, public on GitHub
-  (github.com/galetaire/fingertip-android, created 21 Nov 2026). Commit/push
+0.3.0 (21 Nov 2026, proven on the phone the same day: the four test sites load on mobile data, Stateless DANE and DNSSEC-from-the-chain both shown ✓, CA shown as installed) adds: Urkel proofs from Handshake peers
+(proof services only as fallback), Stateless DANE from the site's own
+certificate, per-site results and the CA fingerprint on screen, and a
+refreshed checkpoint.
+
+- **0.3.0 Go additions:**
+  - `peerproof.go`: one kept peer connection; `getproof` for nameKey(tld)
+    under the **verified tip's tree root** (hnsd's approach), proof
+    verified against it; tried first by `onChain.lookup` (`fromPeer`),
+    services after. Live: records for belikebill/woodburn from a peer,
+    root of block 356725.
+  - `sane.go` + `dnssecchain.go` (Dit's verifier, dsMatches adapted):
+    `LookupTLSA` first fetches the site's certificate (address from our
+    resolver, TLS without verification) and, if it has OIDs
+    1.3.6.1.4.1.54392.5.1620/1621, checks the Urkel proof's root with
+    `checkRoot`, the proof, then the chain from the on-chain DS. Result
+    cached 1 h per name (also "no proofs"). The key step is letsdane's own
+    TLSA check when it dials. Falls back to the nameserver path.
+  - `report.go`: `@site <name> <status> <detail>` lines (statuses
+    verified-sane, verified, verified-unchecked, not-dane, unsigned,
+    refused, failed), printed only on change; `bogusError` separates DNSSEC
+    failures (refused) from network ones (failed); a log filter turns
+    letsdane's "[WARN] ... dane authentication failed" into "refused".
+  - Tests: Dit's chain tests (nathan.woodburn, fixed date 20 Nov 2026),
+    belikebill.crt proves itself offline against the checkpoint roots
+    (block 355465), a copy with another key does not match the TLSA, a
+    changed chain byte and another name are refused, LookupTLSA asks no
+    nameserver for a SANE site, report dedupe + letsdane parsing.
+- **0.3.0 Kotlin:** `SiteResults.kt` (newest 8 of up to 30 sites, ✓ ⚠ – ✗),
+  DaneProxy routes `@site` lines there; `caFingerprint()` from ca.crt;
+  MainActivity shows the fingerprint, "Handshake sites" and "Log".
+- **0.3.0 emulator test:** belikebill and just.belikebill "verified from
+  its own certificate" (roots of blocks 355465 and 355537), nathan.woodburn
+  and hnsdoh "verified with DNSSEC from the chain" (record proven by a
+  peer), woodburn verified (its server itself answers 502), an unknown
+  name "failed: no such name on the Handshake chain".
+
+- Repo: ~/Documents/GitHub/ShakePortal, branch main, public on GitHub
+  (github.com/galetaire/ShakePortal, created 21 Nov 2026 as fingertip-android, renamed the same day). Commit/push
   only when the owner asks.
-- Package `io.github.galetaire.fingertip`, app name "Fingertip", version
-  0.2.0 (versionCode 4), minSdk 29, targetSdk/compileSdk 35. No Android
+- Package `io.github.galetaire.shakeportal` (was io.github.galetaire.fingertip until 21 Nov 2026: a new id, so the old app must be uninstalled), app name **"ShakePortal"** (renamed from Fingertip 21 Nov 2026; icon from art/icon.png as an adaptive icon, rebuilt with scripts/make-icon.ps1; Save CA writes ShakePortal-CA.crt; new CAs are "ShakePortal DANE (phone)", an existing CA is kept with its old name "Fingertip DANE (phone)"), version
+  0.3.0 (versionCode 5), minSdk 29, targetSdk/compileSdk 35. No Android
   libraries: framework + Kotlin only, UI built in code.
 - **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
   off, Chrome sends every site through the VPN-set proxy and pages load. A
   VPN with only a narrow unused route is enough. (0.0.1 failed with
   `ERR_PROXY_CONNECTION_FAILED`: `InetAddress.getLoopbackAddress()` is IPv6
   `::1` on Android, so bind 127.0.0.1 explicitly.)
-- Kotlin (app/src/main/java/io/github/galetaire/fingertip/):
+- Kotlin (app/src/main/java/io/github/galetaire/shakeportal/):
   - `ProxyVpnService.kt`: VPN (10.111.0.1/32, route only 10.111.0.0/24,
     `addDisallowedApplication(packageName)`, `setHttpProxy(127.0.0.1:8080)`).
     Starts DaneProxy with the network's DNS servers (LinkProperties of the
@@ -58,15 +95,15 @@ against block headers the phone synced and verified itself.
     proxy on 127.0.0.1:8081. Logs `HTTPS host` / `HNS host → DANE proxy`.
   - `IcannTlds.kt`: Handshake name = TLD not in assets/icann-tlds.txt and not
     special-use.
-  - `DaneProxy.kt`: runs `libfingertipd.so` from nativeLibraryDir with
+  - `DaneProxy.kt`: runs `libshakeportald.so` from nativeLibraryDir with
     ProcessBuilder (`-listen 127.0.0.1:8081 -data files/dane -tlds ... -dns
     ...`, env SSL_CERT_DIR=/apex/com.android.conscrypt/cacerts:/system/etc/
     security/cacerts), its output into the log; stops it by closing stdin.
   - `MainActivity.kt`: Start / Stop / Clear / Save CA certificate (copies
-    files/dane/ca/ca.crt to Downloads as Fingertip-CA.crt via MediaStore;
+    files/dane/ca/ca.crt to Downloads as ShakePortal-CA.crt via MediaStore;
     apps cannot install CAs themselves since Android 11) and the log.
   - Manifest: INTERNET, ACCESS_NETWORK_STATE (needed for LinkProperties).
-- Go (`go/`, module github.com/galetaire/fingertip-android/go, package main,
+- Go (`go/`, module github.com/galetaire/ShakePortal/go, package main,
   letsdane v0.6.1, deps upgraded with `go get -u`):
   - `main.go`: flags, name-constrained CA in <data>/ca (from Dit), letsdane
     handler (Validity 1h, Constraints = ICANN list), loopback-only listener,
@@ -98,9 +135,9 @@ against block headers the phone synced and verified itself.
       never answer getheaders: pruned or syncing), switches to a fork with
       more work, saves the window.
     - `checkpoint.go` + `checkpoint.bin` (committed, 566 KB): 2400 headers,
-      blocks 354325–356724 (last 2026-11-21 08:38 UTC, hash
-      0000000000000020834ada7a6d1789690688f0d13ea7018a29d4706cca39db0b).
-      Made by `fingertipd -make-checkpoint` (`build-go.ps1 -Checkpoint`):
+      blocks 354327–356726 (refreshed for 0.3.0; last 2026-11-21 08:47
+      UTC, hash 000000000000000ee3b791c81bd45ded18ad3dbc1d9c6aae818bfa58975f8580).
+      Made by `shakeportald -make-checkpoint` (`build-go.ps1 -Checkpoint`):
       from hsd's checkpoint 225000, ~130k headers all fully verified, must
       pass hsd's 258026; carries on across peers that stop answering. The
       offline test re-verifies it and matches two roots Dit's own hnsd saw
@@ -117,7 +154,7 @@ against block headers the phone synced and verified itself.
   - Tests: CA constraints, TLD list, resource parsing, root agreement, an
     in-memory signed TLD with delegation (tampered answer, stripped
     signature, wrong DS all refused), and `TestResolverLive`
-    (FINGERTIP_LIVE=1): belikebill, just.belikebill, nathan.woodburn and
+    (SHAKEPORTAL_LIVE=1): belikebill, just.belikebill, nathan.woodburn and
     hnsdoh all get a TLSA proven from the on-chain DS (21 Nov 2026).
 - **Emulator test (21 Nov 2026, Android 17 x86_64):** app starts the Go
   binary (no seccomp problem with a static GOOS=linux binary), creates the
@@ -172,7 +209,7 @@ the trailing slash for single-word names.
   PowerShell for scripts.
 - Go program for the app: `.scriptsuild-go.ps1` (`-Live` adds the
   network tests, `-Update` upgrades deps) runs scripts/build-go.sh in
-  golang:1.26-alpine with the module cache in the `fingertip-gomod` volume.
+  golang:1.26-alpine with the module cache in the `shakeportal-gomod` volume.
   Run it before gradlew whenever go/ changes; its outputs are git-ignored.
   PowerShell 5.1 mangles quotes passed to docker, hence the .sh file.
 - Emulator for testing (owner tests on the real phone): AVD
@@ -180,7 +217,7 @@ the trailing slash for single-word names.
   `emulator -avd Medium_Phone_API_37.0 -no-window -no-audio -no-boot-anim
   -no-snapshot-save -gpu swiftshader_indirect` in the background, then adb
   (in Git Bash set MSYS_NO_PATHCONV=1). `adb shell appops set
-  io.github.galetaire.fingertip ACTIVATE_VPN allow` skips the VPN dialog;
+  io.github.galetaire.shakeportal ACTIVATE_VPN allow` skips the VPN dialog;
   find buttons with `uiautomator dump`; `run-as` works (debug build). A
   probe client (CONNECT through 127.0.0.1:8080, TLS verified against the
   app's CA) was built in the scratchpad for the 21 Nov test.
@@ -200,25 +237,22 @@ DoH fallback; hnsdoh being down on 21 Nov 2026 led to this design.
 1. **Step 1 (done, proven 21 Nov 2026):** the VPN-set proxy is used on
    mobile data.
 2. **Step 2 (done, proven on the phone 21 Nov 2026, 0.1.0):** the verifying proxy, as
-   described in State. Next small things after the phone test:
-   - per-site result in the UI (verified / not a DANE site / refused);
-   - the CA's fingerprint on screen, to compare with Settings;
-   - QUIC: Chrome with a proxy uses TCP only, nothing to do; check other
-     browsers.
+   described in State. Per-site results and the CA fingerprint on screen
+   came in 0.3.0. QUIC: Chrome with a proxy uses TCP only; other browsers
+   not checked.
 3. **Step 3 (done, proven on the phone 21 Nov 2026, 0.2.0): tree roots
    checked, not agreed on.** Done as a mix of (b) and (c): headers from Handshake peers
    (short connections, getheaders only, no name queries), verified like
    hsd does, from a checkpoint built into the app. A root changes every 36
    blocks (~6 h); proofs anchor to the root ~8 days old (HIP-17's 32nd most
    recent), so ~16 days are kept and roots over 15 days are refused.
-   Possible later: Urkel proofs straight from peers (hsd's GETPROOF/PROOF
-   packets, as hnsd does) instead of the proof services, which would remove
-   the last third-party dependency (not a trust one).
-4. **Step 4: Stateless DANE from the certificate** (needs step 3): when a
+   Since 0.3.0 the TLD records come from peers (GETPROOF/PROOF, as hnsd
+   does) for the tip's root; the proof services are only the fallback.
+4. **Step 4 (done, proven on the phone 21 Nov 2026, 0.3.0): Stateless DANE from the
+   certificate** (needs step 3): when a
    site's certificate carries the HIP-17 proofs (OIDs
    1.3.6.1.4.1.54392.5.1620/1621; Castell embeds them, see below), verify
-   them offline with Dit's `dnssecchain.go` + `sitecert.go` (not copied yet)
-   instead of asking the nameservers: no lookups beyond the address, and
+   them offline (`sane.go`, Dit's `dnssecchain.go`) instead of asking the nameservers: no lookups beyond the address, and
    works when a site's nameservers are unreachable. Must end with Dit's
    "key" step (served certificate matches the proven TLSA), which letsdane's
    own check provides when the proven TLSA is returned to it.

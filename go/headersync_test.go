@@ -162,10 +162,10 @@ func TestSavedWindowIsReused(t *testing.T) {
 }
 
 // Syncs from real peers on top of the checkpoint, then resolves a real name
-// with every root checked. FINGERTIP_LIVE=1.
+// with every root checked. SHAKEPORTAL_LIVE=1.
 func TestHeaderSyncLive(t *testing.T) {
-	if os.Getenv("FINGERTIP_LIVE") != "1" {
-		t.Skip("set FINGERTIP_LIVE=1 to sync from Handshake peers")
+	if os.Getenv("SHAKEPORTAL_LIVE") != "1" {
+		t.Skip("set SHAKEPORTAL_LIVE=1 to sync from Handshake peers")
 	}
 	s, err := newHeaderSync(filepath.Join(t.TempDir(), "headers.bin"), t.Logf)
 	if err != nil {
@@ -179,12 +179,24 @@ func TestHeaderSyncLive(t *testing.T) {
 	o := newOnChain(defaultServices, nil)
 	o.client = httpClientForTests()
 	o.checkRoot = s.checkRoot
-	for _, tld := range []string{"belikebill", "woodburn"} {
-		rec, err := o.lookup(ctx, tld)
-		if err != nil || !rec.Exists || !strings.Contains(rec.How, "checked against") {
-			t.Errorf("%s: %+v %v", tld, rec, err)
-			continue
+	o.logf = t.Logf
+	// Proof services first, then peers (the app\'s order is peers first)
+	for _, fromPeers := range []bool{false, true} {
+		o.cache = map[string]*tldRecord{}
+		o.peerProof = nil
+		if fromPeers {
+			o.peerProof = newProofPeers(s).prove
 		}
-		t.Logf("%s: %s", tld, rec.How)
+		for _, tld := range []string{"belikebill", "woodburn"} {
+			rec, err := o.lookup(ctx, tld)
+			if err != nil || !rec.Exists || !strings.Contains(rec.How, "checked against") || len(rec.Resource.DS) == 0 {
+				t.Errorf("%s: %+v %v", tld, rec, err)
+				continue
+			}
+			if fromPeers && !strings.Contains(rec.How, "proof from peer") {
+				t.Errorf("%s: expected a proof from a peer: %s", tld, rec.How)
+			}
+			t.Logf("%s: %s", tld, rec.How)
+		}
 	}
 }

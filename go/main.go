@@ -1,13 +1,13 @@
-// fingertipd: Fingertip's DANE proxy for Handshake names, run by the Android
-// app as a child process (shipped in the APK as libfingertipd.so).
+// shakeportald: ShakePortal's DANE proxy for Handshake names, run by the Android
+// app as a child process (shipped in the APK as libshakeportald.so).
 //
 // The app's own proxy (LocalProxy.kt, the one the VPN hands to every app)
 // sends ICANN names straight out and forwards only Handshake names here. This
 // proxy, built on letsdane (github.com/buffrr/letsdane, Apache-2.0, as Dit and
-// Fingertip use), checks each site's certificate against its TLSA record and
+// ShakePortal use), checks each site's certificate against its TLSA record and
 // re-signs the connection with a local CA that the user installs once.
 //
-//   - Handshake names are resolved by Fingertip itself (resolver.go): the
+//   - Handshake names are resolved by ShakePortal itself (resolver.go): the
 //     top-level name's on-chain record comes from the Stateless DANE proof
 //     services (onchain.go), its nameservers are asked directly, and every
 //     answer is checked from the on-chain DS. No Handshake resolver is
@@ -51,7 +51,7 @@ import (
 var specialUse = []string{"local", "localhost", "onion", "test", "invalid", "example", "internal", "alt", "home.arpa"}
 
 const (
-	caName     = "Fingertip DANE (phone)"
+	caName     = "ShakePortal DANE (phone)"
 	caValidity = 5 * 365 * 24 * time.Hour
 )
 
@@ -111,7 +111,7 @@ func loadOrCreateCA(dir string, constraints map[string]struct{}) (*authority, er
 	switch {
 	case errors.Is(certErr, os.ErrNotExist) && errors.Is(keyErr, os.ErrNotExist):
 		log.Printf("creating a new CA")
-		cert, key, err := letsdane.NewAuthority(caName, "Fingertip", caValidity, constraints)
+		cert, key, err := letsdane.NewAuthority(caName, "ShakePortal", caValidity, constraints)
 		if err != nil {
 			return nil, fmt.Errorf("could not create the CA: %w", err)
 		}
@@ -209,7 +209,7 @@ func main() {
 		}
 		return
 	}
-	letsdane.Version = "0.6.1 (Fingertip)"
+	letsdane.Version = "0.6.1 (ShakePortal)"
 
 	// The app holds our stdin open: when it closes (the app stopped us or
 	// died), exit instead of lingering
@@ -249,8 +249,13 @@ func main() {
 
 	chain := newOnChain(serviceList, &http.Client{Timeout: 15 * time.Second})
 	chain.checkRoot = headers.checkRoot
+	chain.peerProof = newProofPeers(headers).prove
+	chain.logf = log.Printf
 	resolver := newHNSResolver(chain, isICANN)
 	resolver.logf = log.Printf
+	reporter := newSiteReporter(os.Stderr)
+	resolver.report = reporter.report
+	log.SetOutput(&logFilter{out: os.Stderr, reporter: reporter})
 
 	proxyConfig := &letsdane.Config{
 		Certificate: ca.cert,

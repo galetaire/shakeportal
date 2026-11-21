@@ -1,4 +1,4 @@
-module github.com/galetaire/fingertip-android/go
+module github.com/galetaire/ShakePortal/go
 
 go 1.26.0
 

@@ -1,7 +1,7 @@
-# fingertip-android
+# ShakePortal
 
 Handshake sites on your Android phone, away from home, checked with DANE:
-the phone counterpart of [Dit](https://github.com/galetaire/dit), in the
+the app **ShakePortal** (formerly Fingertip), the phone counterpart of [Dit](https://github.com/galetaire/dit), in the
 spirit of Fingertip on the desktop.
 
 ## Why
@@ -20,16 +20,20 @@ data, but a **VPN app can set a system proxy** that applies everywhere
   resolved by Android as usual. Handshake names (`belikebill/`,
   `nathan.woodburn/`) go to the **DANE proxy** on `127.0.0.1:8081`.
 - **The DANE proxy** (`go/`, built on
-  [letsdane](https://github.com/buffrr/letsdane)) resolves the name itself:
-  1. the top-level name's on-chain record (its DS records and nameservers)
-     comes from the public Stateless DANE proof services, as an Urkel proof
-     that is checked on the phone;
-  2. the site's nameservers are asked directly;
-  3. every answer is checked with DNSSEC from the on-chain DS.
+  [letsdane](https://github.com/buffrr/letsdane)) proves the site's TLSA
+  record itself, in one of two ways:
+  - **Stateless DANE** (HIP-17): if the site's certificate carries its own
+    proofs (as [Castell](https://github.com/galetaire/castell) sites do),
+    they are verified offline, and no nameserver is asked.
+  - Otherwise: the top-level name's on-chain record (its DS records and
+    nameservers) comes as an Urkel proof from a Handshake peer (or, as a
+    fallback, from the public Stateless DANE proof services) and is
+    checked on the phone; the site's nameservers are asked directly; every
+    answer is checked with DNSSEC from the on-chain DS.
 
   No Handshake resolver is trusted, and no hnsd runs on the phone. When the
-  site's TLSA record is proven, the proxy checks the site's certificate
-  against it and re-signs the connection with a local CA.
+  TLSA record is proven, the proxy checks the site's certificate against it
+  and re-signs the connection with a local CA.
 - **The tree roots** that the proofs rest on are checked against Handshake
   block headers that the app syncs from peers every 30 minutes and verifies
   itself (proof of work, difficulty, time), like a light wallet. It starts
@@ -46,12 +50,15 @@ the log says it was not checked.
 ## Use
 
 1. Copy `app-debug.apk` to the phone and install it.
-2. Open Fingertip → **Start** → accept Android's VPN request.
+2. Open ShakePortal → **Start** → accept Android's VPN request.
 3. Once: tap **Save CA certificate**, then install it in Settings → Security
    & privacy → More security settings → Encryption & credentials → Install a
-   certificate → CA certificate → `Fingertip-CA.crt` (in Downloads).
-4. Browse Handshake sites in Chrome, on Wi-Fi or mobile data. The log shows
-   each site and how it was checked.
+   certificate → CA certificate → `ShakePortal-CA.crt` (in Downloads).
+4. Browse Handshake sites in Chrome, on Wi-Fi or mobile data. The app lists
+   each site and how it was checked (✓ verified from its own certificate or
+   with DNSSEC from the chain, – not a DANE site, ✗ refused or failed), and
+   shows the CA's SHA-256 fingerprint to compare with Settings → Trusted
+   credentials → User.
 
 Chrome trusts user-installed CAs; most other apps do not. Firefox needs "Use
 third party CA certificates" (Secret Settings) and DNS over HTTPS off.
@@ -61,13 +68,16 @@ third party CA certificates" (Secret Settings) and DNS over HTTPS off.
 - The DANE proxy (Go, in Docker, as Go is not needed on the PC):
   `.\scripts\build-go.ps1` (add `-Live` to also test against real Handshake
   names and peers, `-Checkpoint` to refresh the built-in headers,
-  `go/checkpoint.bin`, from hsd's own checkpoint). It writes `app/src/main/jniLibs/*/libfingertipd.so` and
+  `go/checkpoint.bin`, from hsd's own checkpoint). It writes `app/src/main/jniLibs/*/libshakeportald.so` and
   `app/src/main/assets/icann-tlds.txt` (IANA's list, fresh).
 - The app: Gradle 9.9.1 (wrapper included), Android Gradle plugin 9.5.1 with
   its built-in Kotlin, compileSdk 35, on Android Studio's own Java:
   `$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat assembleDebug`
 
 The APK is `app/build/outputs/apk/debug/app-debug.apk`.
+
+The icon: the artwork is `art/icon.png`; after changing it, run
+`.\scripts\make-icon.ps1` to rebuild the launcher icon from it, then build.
 
 ## Notes
 

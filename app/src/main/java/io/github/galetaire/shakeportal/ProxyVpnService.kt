@@ -1,4 +1,4 @@
-package io.github.galetaire.fingertip
+package io.github.galetaire.shakeportal
 
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -56,7 +56,7 @@ class ProxyVpnService : VpnService() {
             dane.start(dnsServers)
             proxy.start()
             tunnel = Builder()
-                .setSession("Fingertip")
+                .setSession("ShakePortal")
                 .addAddress("10.111.0.1", 32)
                 .addRoute("10.111.0.0", 24)
                 .addDisallowedApplication(packageName)
@@ -135,8 +135,8 @@ class ProxyVpnService : VpnService() {
     }
 
     companion object {
-        const val ACTION_START = "io.github.galetaire.fingertip.START"
-        const val ACTION_STOP = "io.github.galetaire.fingertip.STOP"
+        const val ACTION_START = "io.github.galetaire.shakeportal.START"
+        const val ACTION_STOP = "io.github.galetaire.shakeportal.STOP"
         const val PROXY_PORT = 8080
 
         @Volatile var running = false

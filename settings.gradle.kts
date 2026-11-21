@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "fingertip-android"
+rootProject.name = "ShakePortal"
 include(":app")

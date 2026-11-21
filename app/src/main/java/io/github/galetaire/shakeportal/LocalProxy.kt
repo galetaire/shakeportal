@@ -1,4 +1,4 @@
-package io.github.galetaire.fingertip
+package io.github.galetaire.shakeportal
 
 import java.io.ByteArrayOutputStream
 import java.io.InputStream

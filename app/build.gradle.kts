@@ -4,20 +4,20 @@ plugins {
 }
 
 android {
-    namespace = "io.github.galetaire.fingertip"
+    namespace = "io.github.galetaire.shakeportal"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.galetaire.fingertip"
+        applicationId = "io.github.galetaire.shakeportal"
         // Android 10: VpnService.Builder.setHttpProxy, the whole point of this app
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.0"
+        versionCode = 5
+        versionName = "0.3.0"
     }
 
-    // fingertipd (the Go DANE proxy, built by scripts/build-go.ps1) is shipped
-    // as libfingertipd.so: it must be extracted on install so the app can
+    // shakeportald (the Go DANE proxy, built by scripts/build-go.ps1) is shipped
+    // as libshakeportald.so: it must be extracted on install so the app can
     // run it from its native library directory
     packaging {
         jniLibs {

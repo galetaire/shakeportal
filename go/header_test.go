@@ -45,10 +45,10 @@ const (
 
 // Asks real peers for the 2000 headers after hsd's checkpoint: they must
 // link to it and to each other, with valid proof of work. This checks the
-// header hashing against the real chain. FINGERTIP_LIVE=1.
+// header hashing against the real chain. SHAKEPORTAL_LIVE=1.
 func TestHeadersFromPeersLive(t *testing.T) {
-	if os.Getenv("FINGERTIP_LIVE") != "1" {
-		t.Skip("set FINGERTIP_LIVE=1 to ask Handshake peers")
+	if os.Getenv("SHAKEPORTAL_LIVE") != "1" {
+		t.Skip("set SHAKEPORTAL_LIVE=1 to ask Handshake peers")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

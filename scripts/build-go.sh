@@ -28,11 +28,11 @@ fi
 go vet ./...
 gofmt -l . | sed "s/^/needs gofmt: /"
 go test ./...
-if [ "$LIVE" = 1 ]; then FINGERTIP_LIVE=1 go test -count=1 -v -run Live ./...; fi
+if [ "$LIVE" = 1 ]; then SHAKEPORTAL_LIVE=1 go test -count=1 -v -run Live ./...; fi
 
 for pair in arm64:arm64-v8a amd64:x86_64; do
   out=/src/app/src/main/jniLibs/${pair#*:}
   mkdir -p "$out"
-  CGO_ENABLED=0 GOOS=linux GOARCH=${pair%%:*} go build -trimpath -ldflags="-s -w" -o "$out/libfingertipd.so" .
+  CGO_ENABLED=0 GOOS=linux GOARCH=${pair%%:*} go build -trimpath -ldflags="-s -w" -o "$out/libshakeportald.so" .
 done
-ls -l /src/app/src/main/jniLibs/*/libfingertipd.so
+ls -l /src/app/src/main/jniLibs/*/libshakeportald.so

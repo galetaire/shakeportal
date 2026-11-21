@@ -48,16 +48,20 @@ type onChain struct {
 	services []string
 	client   *http.Client
 	now      func() time.Time
+	logf     func(format string, a ...any)
 	// checkRoot says whether a root is one of the verified chain (nil: none
 	// available, as in tests)
 	checkRoot func(ctx context.Context, root []byte) (string, error)
+	// peerProof gets the record from a Handshake peer (peerproof.go),
+	// tried before the proof services (nil: services only)
+	peerProof func(ctx context.Context, tld string) (*provenRecord, error)
 
 	mu    sync.Mutex
 	cache map[string]*tldRecord
 }
 
 func newOnChain(services []string, client *http.Client) *onChain {
-	return &onChain{services: services, client: client, now: time.Now, cache: map[string]*tldRecord{}}
+	return &onChain{services: services, client: client, now: time.Now, logf: func(string, ...any) {}, cache: map[string]*tldRecord{}}
 }
 
 // one service's answer, already checked against its own root
@@ -128,6 +132,10 @@ func (o *onChain) lookup(ctx context.Context, tld string) (*tldRecord, error) {
 	}
 	o.mu.Unlock()
 
+	if rec := o.fromPeer(ctx, tld); rec != nil {
+		return o.remember(tld, rec), nil
+	}
+
 	answers := make([]*provenRecord, len(o.services))
 	errs := make([]error, len(o.services))
 	var wg sync.WaitGroup
@@ -144,11 +152,41 @@ func (o *onChain) lookup(ctx context.Context, tld string) (*tldRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	return o.remember(tld, rec), nil
+}
+
+func (o *onChain) remember(tld string, rec *tldRecord) *tldRecord {
 	rec.fetched = o.now()
 	o.mu.Lock()
 	o.cache[tld] = rec
 	o.mu.Unlock()
-	return rec, nil
+	return rec
+}
+
+// fromPeer: the record proven by a Handshake peer for a root of the verified
+// chain, or nil (then the proof services are asked)
+func (o *onChain) fromPeer(ctx context.Context, tld string) *tldRecord {
+	if o.peerProof == nil || o.checkRoot == nil {
+		return nil
+	}
+	a, err := o.peerProof(ctx, tld)
+	if err != nil {
+		if !errors.Is(err, errHeadersNotSynced) {
+			o.logf("%s: no proof from peers (%v), asking the proof services", tld, err)
+		}
+		return nil
+	}
+	how, err := o.checkRoot(ctx, a.root)
+	if err != nil {
+		o.logf("%s: peer proof root not accepted (%v), asking the proof services", tld, err)
+		return nil
+	}
+	rec, err := recordFrom(tld, a, how+", proof from "+a.service)
+	if err != nil {
+		o.logf("%s: %v", tld, err)
+		return nil
+	}
+	return rec
 }
 
 // accept picks the answer whose root the verified chain knows. Without

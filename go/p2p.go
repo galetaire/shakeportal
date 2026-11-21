@@ -1,7 +1,8 @@
 package main
 
 // Just enough of Handshake's peer protocol (hsd lib/net, v8.0.0) to ask a
-// full node for block headers: version/verack, getheaders/headers, ping/pong.
+// full node for block headers and name proofs: version/verack,
+// getheaders/headers, getproof/proof, ping/pong.
 // Plain TCP on port 12038, which hsd nodes accept besides brontide. A peer
 // is not trusted: every header it sends is checked (headerchain.go).
 
@@ -28,6 +29,8 @@ const (
 	msgPong       = 3
 	msgGetHeaders = 10
 	msgHeaders    = 11
+	msgGetProof   = 26
+	msgProof      = 27
 
 	maxHeadersPerMessage = 2000
 )
@@ -89,7 +92,7 @@ func (p *peer) receive(deadline time.Time) (byte, []byte, error) {
 
 // versionPayload: hsd VersionPacket.write. No services offered, no relay.
 func versionPayload() []byte {
-	agent := "/fingertip:0.2.0/"
+	agent := "/shakeportal:0.3.0/"
 	b := make([]byte, 0, 128)
 	b = binary.LittleEndian.AppendUint32(b, 3) // protocol version
 	b = binary.LittleEndian.AppendUint32(b, 0) // services
@@ -207,6 +210,31 @@ func (p *peer) getHeaders(locator [][32]byte) ([]*header, error) {
 				off += headerSize
 			}
 			return out, nil
+		}
+	}
+}
+
+// getProof asks for the Urkel proof of a name key under a tree root (as
+// hnsd does). The proof is checked by the caller against that root.
+func (p *peer) getProof(root [32]byte, key []byte) (*urkelProof, error) {
+	payload := append(append([]byte{}, root[:]...), key...)
+	if err := p.send(msgGetProof, payload); err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		cmd, payload, err := p.receive(deadline)
+		if err != nil {
+			return nil, err
+		}
+		switch cmd {
+		case msgPing:
+			p.send(msgPong, payload)
+		case msgProof:
+			if len(payload) < 64 || [32]byte(payload[:32]) != root || string(payload[32:64]) != string(key) {
+				continue // an answer to something else
+			}
+			return decodeUrkelProof(&reader{data: payload, pos: 64})
 		}
 	}
 }
