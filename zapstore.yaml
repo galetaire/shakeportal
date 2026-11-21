@@ -30,6 +30,7 @@ description: |
   Chrome trusts user-installed CAs; Firefox needs "Use third party CA
   certificates" turned on.
 website: https://github.com/galetaire/ShakePortal
+license: MIT
 tags: [handshake, dns, dane, privacy, vpn]
 
 icon: ./art/icon.png

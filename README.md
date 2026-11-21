@@ -119,3 +119,9 @@ The icon: the artwork is `art/icon.png`; after changing it, run
 - The DANE proxy runs as a child process (a static Linux binary, shipped as a
   native library so Android lets the app run it), not through gomobile: no
   Android NDK needed.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The code ported from hsd (headers, retarget)
+and from Dit (Urkel, DNSSEC) is MIT too; letsdane, a dependency of the DANE
+proxy, is Apache-2.0.
