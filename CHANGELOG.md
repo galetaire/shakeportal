@@ -2,8 +2,7 @@
 
 ## [0.3.0] - 2026-11-21
 
-First public release, as ShakePortal (earlier versions were test builds
-called Fingertip).
+First public release, as ShakePortal.
 
 ### Added
 

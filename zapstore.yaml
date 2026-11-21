@@ -2,11 +2,11 @@
 # scripts/zapstore.ps1 (see README.md, "Publish on Zapstore").
 
 # The signed APK is attached to each GitHub release (only the arm64 one)
-repository: https://github.com/galetaire/ShakePortal
+repository: https://github.com/galetaire/shakeportal
 match: 'ShakePortal-.*-arm64-v8a\.apk$'
 
 name: ShakePortal
-summary: Handshake sites in Chrome, checked with DANE, on Wi-Fi and mobile data
+summary: Handshake sites on Android, checked with DANE
 description: |
   ShakePortal opens **Handshake** names (like `https://belikebill/`) in
   Chrome on your phone, anywhere: at home, on any Wi-Fi and on mobile data.
@@ -29,7 +29,7 @@ description: |
 
   Chrome trusts user-installed CAs; Firefox needs "Use third party CA
   certificates" turned on.
-website: https://github.com/galetaire/ShakePortal
+website: https://github.com/galetaire/shakeportal
 license: MIT
 tags: [handshake, dns, dane, privacy, vpn]
 
