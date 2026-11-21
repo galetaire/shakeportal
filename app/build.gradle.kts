@@ -12,8 +12,8 @@ android {
         // Android 10: VpnService.Builder.setHttpProxy, the whole point of this app
         minSdk = 29
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.0"
+        versionCode = 4
+        versionName = "0.2.0"
     }
 
     // fingertipd (the Go DANE proxy, built by scripts/build-go.ps1) is shipped

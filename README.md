@@ -30,12 +30,18 @@ data, but a **VPN app can set a system proxy** that applies everywhere
   No Handshake resolver is trusted, and no hnsd runs on the phone. When the
   site's TLSA record is proven, the proxy checks the site's certificate
   against it and re-signs the connection with a local CA.
+- **The tree roots** that the proofs rest on are checked against Handshake
+  block headers that the app syncs from peers every 30 minutes and verifies
+  itself (proof of work, difficulty, time), like a light wallet. It starts
+  from ~16 days of headers built into the app, so the first sync is a few
+  KB. A proof service can therefore not lie, only fail to answer.
 - **The local CA** is created on the phone at first start. Its name
   constraints exclude every ICANN top-level domain, so it can never sign a
   certificate for gmail.com or a bank, even if its key leaked.
 
-Not finished yet: the proof services' tree root is accepted when they agree
-with each other. Checking it against Handshake block headers is the next step.
+While the headers are not synced yet (the first seconds after Start, or no
+peer reachable), a root is accepted when the proof services agree on it, and
+the log says it was not checked.
 
 ## Use
 
@@ -54,7 +60,8 @@ third party CA certificates" (Secret Settings) and DNS over HTTPS off.
 
 - The DANE proxy (Go, in Docker, as Go is not needed on the PC):
   `.\scripts\build-go.ps1` (add `-Live` to also test against real Handshake
-  names). It writes `app/src/main/jniLibs/*/libfingertipd.so` and
+  names and peers, `-Checkpoint` to refresh the built-in headers,
+  `go/checkpoint.bin`, from hsd's own checkpoint). It writes `app/src/main/jniLibs/*/libfingertipd.so` and
   `app/src/main/assets/icann-tlds.txt` (IANA's list, fresh).
 - The app: Gradle 9.9.1 (wrapper included), Android Gradle plugin 9.5.1 with
   its built-in Kotlin, compileSdk 35, on Android Studio's own Java:

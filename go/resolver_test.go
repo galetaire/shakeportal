@@ -342,3 +342,5 @@ func TestResolverLive(t *testing.T) {
 		t.Logf("%s: %v, %d TLSA, secure %v", name, ips, len(tlsa), secure)
 	}
 }
+
+func httpClientForTests() *http.Client { return &http.Client{Timeout: 15 * time.Second} }

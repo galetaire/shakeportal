@@ -29,13 +29,16 @@ on Wi-Fi and mobile data alike, and Chrome honours it. The VPN tunnels
 nothing; it only carries the proxy setting. The proxy runs inside the app on
 the phone's loopback.
 
-## State: step 2 built (0.1.0), tested on the emulator, NOT yet on the phone
+## State: step 3 built (0.2.0), tested on the emulator, NOT yet on the phone
+
+Step 2 (0.1.0) is proven on the phone; step 3 (tree roots checked against
+synced block headers) is built and passed on the emulator.
 
 - Repo: ~/Documents/GitHub/fingertip-android, branch main, public on GitHub
   (github.com/galetaire/fingertip-android, created 21 Nov 2026). Commit/push
   only when the owner asks.
 - Package `io.github.galetaire.fingertip`, app name "Fingertip", version
-  0.1.0 (versionCode 3), minSdk 29, targetSdk/compileSdk 35. No Android
+  0.2.0 (versionCode 4), minSdk 29, targetSdk/compileSdk 35. No Android
   libraries: framework + Kotlin only, UI built in code.
 - **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
   off, Chrome sends every site through the VPN-set proxy and pages load. A
@@ -70,9 +73,38 @@ the phone's loopback.
   - `onchain.go`: TLD record from the proof services
     (`<service>/proofs/<tld>?urkel`, sdaneproofs.htools.work and
     sdaneproofs.woodburn.au), Urkel proof verified against the root it
-    names; **interim root rule: every answering service must give the same
-    root and record** (one service alone is accepted and labelled). Cached
-    1 h (absence 10 min).
+    names, and **the root must be a tree root of the verified header chain,
+    at most 15 days old** (`accept` + `checkRoot`; one service is enough,
+    a lying one is outvoted by the chain). Only while headers are not synced
+    (`errHeadersNotSynced`) the old rule applies, labelled "NOT checked":
+    every answering service must give the same root and record. An unknown
+    root triggers a resync (at most once a minute). Cached 1 h (absence
+    10 min).
+  - Step 3 (block headers), ported from hsd v8.0.0 (MIT):
+    - `header.go`: 236-byte header, block hash = hsd powHash
+      (BLAKE2b-512/SHA3-256/BLAKE2b-256 over the preheader, XOR mask),
+      compact targets, work.
+    - `headerchain.go`: window of verified headers; `connect` checks link,
+      PoW, exact retarget (chain.js getTarget/retarget: 144-block window,
+      median-of-3 "suitable" blocks, clamp 36–576 spacings), median time of
+      11, at most 2 h in the future. Keeps 3000 headers, tree-root index.
+    - `p2p.go`: hsd P2P over plain TCP 12038 (magic 1533997779, 9-byte
+      frame, version/verack, getheaders/headers ≤2000, ping/pong); peers
+      from the DNS seeds hs-mainnet.bcoin.ninja and seed.htools.work.
+    - `headersync.go`: loads the saved window (<data>/headers.bin) or the
+      built-in checkpoint, syncs every 30 min (2 min after failure), asks
+      up to 8 peers at once and uses the first 2 that answer (most nodes
+      never answer getheaders: pruned or syncing), switches to a fork with
+      more work, saves the window.
+    - `checkpoint.go` + `checkpoint.bin` (committed, 566 KB): 2400 headers,
+      blocks 354325–356724 (last 2026-11-21 08:38 UTC, hash
+      0000000000000020834ada7a6d1789690688f0d13ea7018a29d4706cca39db0b).
+      Made by `fingertipd -make-checkpoint` (`build-go.ps1 -Checkpoint`):
+      from hsd's checkpoint 225000, ~130k headers all fully verified, must
+      pass hsd's 258026; carries on across peers that stop answering. The
+      offline test re-verifies it and matches two roots Dit's own hnsd saw
+      (355465 0e7787ce…, 355537 1ca1b6e7…). Refresh it now and then: the
+      first sync after install downloads everything since it (~34 KB/day).
   - `resolver.go`: letsdane's Resolver interface. Own iterative,
     non-recursive resolver from the on-chain nameservers (GLUE/SYNTH/NS,
     `_<base32hex>._synth.` names), follows referrals, validates DNSKEY from
@@ -97,7 +129,17 @@ the phone's loopback.
   (query.hdns.io 500, doh.hnsdns.com 503, easyhandshake.com, hnsns.net,
   doh.hns.is). That is why the app resolves names itself.
 
-### The step 2 test (owner does it, then reports)
+- **Step 2 PROVEN on the phone (0.1.0, 21 Nov 2026):** after installing
+  Fingertip-CA.crt, Handshake sites load properly in Chrome on mobile data.
+- **Step 3 tests (21 Nov 2026):** live, 2000 headers from a peer link to
+  hsd's checkpoint; the checkpoint run verified ~130k headers (retarget
+  port exact); live sync from the checkpoint to the tip took 24 s (12 peers
+  from the seeds, 1 answered). Emulator (0.2.0): synced to block 356737 in
+  ~30 s, then all four test sites "TLSA proven from the on-chain DS (root
+  b368aa321cf6… is block 355573's, 195h old, checked against 2413 synced
+  headers)"; Stop/Start reuses the saved headers.
+
+### The step 2 test (owner did it, 21 Nov 2026)
 
 Install the new APK over the old one. Start → Save CA certificate → install
 it (Settings → Security & privacy → More security settings → Encryption &
@@ -149,30 +191,28 @@ the trailing slash for single-word names.
 Strategy as of 21 Nov 2026: **no Handshake resolver and no hnsd on the
 phone.** The phone resolves Handshake names itself from on-chain data
 (proof services for the TLD's record, the site's own nameservers, DNSSEC
-checked locally), which makes plain DANE trustless. Stateless DANE (HIP-17,
-proofs in the certificate) comes on top once the phone has its own tree
-roots. History: the plan first was letsdane + hnsd, then SANE-first with
+checked locally, tree roots checked against block headers it syncs itself),
+which makes plain DANE trustless. Stateless DANE (HIP-17, proofs in the
+certificate) can come on top now that the phone has its own tree roots. History: the plan first was letsdane + hnsd, then SANE-first with
 DoH fallback; hnsdoh being down on 21 Nov 2026 led to this design.
 
 1. **Step 1 (done, proven 21 Nov 2026):** the VPN-set proxy is used on
    mobile data.
-2. **Step 2 (built, 0.1.0; phone test pending):** the verifying proxy, as
+2. **Step 2 (done, proven on the phone 21 Nov 2026, 0.1.0):** the verifying proxy, as
    described in State. Next small things after the phone test:
    - per-site result in the UI (verified / not a DANE site / refused);
    - the CA's fingerprint on screen, to compare with Settings;
    - QUIC: Chrome with a proxy uses TCP only, nothing to do; check other
      browsers.
-3. **Step 3: tree roots, so a root is checked, not just agreed on.** The
-   last trust left. A root changes every 36 blocks (~6 h); proofs anchor to
-   the root ~8 days old (HIP-17's 32nd most recent), so keep ~2 weeks (Dit
-   keeps 16 days, refuses >15). Options:
-   - (a) roots from one server: no better than today's agreement rule;
-   - (b) block headers from Handshake peers (SPV, no name queries): costs
-     peer connections;
-   - (c) **preferred:** ~2,000 headers (~0.5 MB) from any server, checked on
-     the phone for proof of work and for linking into one chain from a
-     checkpoint built into the app. Then onchain.go accepts only proofs
-     whose root is in that chain and recent enough.
+3. **Step 3 (built, 0.2.0; phone test pending): tree roots checked, not
+   agreed on.** Done as a mix of (b) and (c): headers from Handshake peers
+   (short connections, getheaders only, no name queries), verified like
+   hsd does, from a checkpoint built into the app. A root changes every 36
+   blocks (~6 h); proofs anchor to the root ~8 days old (HIP-17's 32nd most
+   recent), so ~16 days are kept and roots over 15 days are refused.
+   Possible later: Urkel proofs straight from peers (hsd's GETPROOF/PROOF
+   packets, as hnsd does) instead of the proof services, which would remove
+   the last third-party dependency (not a trust one).
 4. **Step 4: Stateless DANE from the certificate** (needs step 3): when a
    site's certificate carries the HIP-17 proofs (OIDs
    1.3.6.1.4.1.54392.5.1620/1621; Castell embeds them, see below), verify
@@ -203,8 +243,10 @@ DoH fallback; hnsdoh being down on 21 Nov 2026 led to this design.
   both are down, Handshake names fail; ICANN browsing is unaffected.
 - Expired or revoked names: the name state's other fields (renewal height,
   revoked) are not read yet.
-- hnsd for Android is **not planned**; its notes below stay in case option
-  (b) of step 3 reuses hnsd's header sync.
+- hnsd for Android is **not planned** (step 3 syncs headers in Go); its
+  notes below stay for reference.
+- `checkpoint.bin` is binary: keep it out of line-ending conversion
+  (.gitattributes) and refresh it with `build-go.ps1 -Checkpoint`.
 
 ## Lessons from Dit that apply here
 

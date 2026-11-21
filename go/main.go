@@ -11,8 +11,9 @@
 //     top-level name's on-chain record comes from the Stateless DANE proof
 //     services (onchain.go), its nameservers are asked directly, and every
 //     answer is checked from the on-chain DS. No Handshake resolver is
-//     trusted. Until step 3 (tree roots from block headers) a root is
-//     accepted when the proof services agree on it.
+//     trusted. The proofs' tree roots are checked against block headers
+//     this program syncs from Handshake peers and verifies (headersync.go),
+//     starting from a checkpoint built into it (checkpoint.go).
 //   - CA: created on first start in <data>/ca. Its name constraints exclude
 //     every ICANN top-level domain and the special-use names, so even a
 //     stolen key cannot sign certificates for gmail.com or a bank.
@@ -198,7 +199,16 @@ func main() {
 	dnsList := flag.String("dns", "", "comma-separated DNS servers for this process's own lookups")
 	services := flag.String("services", strings.Join(defaultServices, ","), "comma-separated Stateless DANE proof services")
 	verbose := flag.Bool("v", false, "log every connection")
+	makeCP := flag.String("make-checkpoint", "", "build time: write a fresh checkpoint to this file and exit")
 	flag.Parse()
+	if *makeCP != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		defer cancel()
+		if err := makeCheckpoint(ctx, *makeCP); err != nil {
+			log.Fatalf("checkpoint: %v", err)
+		}
+		return
+	}
 	letsdane.Version = "0.6.1 (Fingertip)"
 
 	// The app holds our stdin open: when it closes (the app stopped us or
@@ -231,7 +241,14 @@ func main() {
 			serviceList = append(serviceList, s)
 		}
 	}
+	headers, err := newHeaderSync(filepath.Join(*dataDir, "headers.bin"), log.Printf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	go headers.run(context.Background())
+
 	chain := newOnChain(serviceList, &http.Client{Timeout: 15 * time.Second})
+	chain.checkRoot = headers.checkRoot
 	resolver := newHNSResolver(chain, isICANN)
 	resolver.logf = log.Printf
 

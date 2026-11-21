@@ -5,11 +5,12 @@ package main
 // here against the tree root it names, so a service cannot invent or change
 // a record for that root.
 //
-// What is NOT checked yet (step 3): that the root itself is a real Handshake
-// tree root. Until the app syncs block headers, a root is accepted when every
-// service that answers gives the same root and the same record: a lying
-// service would need the others to lie with it. The answer says how it was
-// accepted, and the app shows that.
+// The root itself must be a tree root of the block headers the app synced
+// and checked (headersync.go), at most 15 days old: then a service cannot
+// lie at all, it can only fail to answer. Only while the headers are not
+// synced yet (the first seconds, or no peer reachable) a root is accepted
+// when every service that answers gives the same root and record, and the
+// log says it was NOT checked.
 
 import (
 	"bytes"
@@ -47,6 +48,9 @@ type onChain struct {
 	services []string
 	client   *http.Client
 	now      func() time.Time
+	// checkRoot says whether a root is one of the verified chain (nil: none
+	// available, as in tests)
+	checkRoot func(ctx context.Context, root []byte) (string, error)
 
 	mu    sync.Mutex
 	cache map[string]*tldRecord
@@ -136,7 +140,7 @@ func (o *onChain) lookup(ctx context.Context, tld string) (*tldRecord, error) {
 	}
 	wg.Wait()
 
-	rec, err := agree(tld, o.services, answers, errs)
+	rec, err := o.accept(ctx, tld, answers, errs)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +149,35 @@ func (o *onChain) lookup(ctx context.Context, tld string) (*tldRecord, error) {
 	o.cache[tld] = rec
 	o.mu.Unlock()
 	return rec, nil
+}
+
+// accept picks the answer whose root the verified chain knows. Without
+// synced headers it falls back to agree.
+func (o *onChain) accept(ctx context.Context, tld string, answers []*provenRecord, errs []error) (*tldRecord, error) {
+	if o.checkRoot == nil {
+		return agree(tld, o.services, answers, errs)
+	}
+	var problems []string
+	for i, a := range answers {
+		if a == nil {
+			problems = append(problems, fmt.Sprintf("%s: %v", hostOf(o.services[i]), errs[i]))
+			continue
+		}
+		how, err := o.checkRoot(ctx, a.root)
+		if errors.Is(err, errHeadersNotSynced) {
+			rec, err := agree(tld, o.services, answers, errs)
+			if rec != nil {
+				rec.How += ", NOT checked: block headers not synced yet"
+			}
+			return rec, err
+		}
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("%s: %v", hostOf(a.service), err))
+			continue
+		}
+		return recordFrom(tld, a, how+", proof from "+hostOf(a.service))
+	}
+	return nil, fmt.Errorf("no proof for %s with a root of the verified chain (%s)", tld, strings.Join(problems, "; "))
 }
 
 // agree turns the services' answers into one record: every service that
@@ -174,11 +207,16 @@ func agree(tld string, services []string, answers []*provenRecord, errs []error)
 	if answered == 1 {
 		how = fmt.Sprintf("root %x… from %s only (others: %s)", first.root[:6], hostOf(first.service), strings.Join(problems, "; "))
 	}
-	rec := &tldRecord{TLD: tld, Root: first.root, How: how}
-	if first.value == nil {
+	return recordFrom(tld, first, how)
+}
+
+// recordFrom decodes a proven value into the TLD's record
+func recordFrom(tld string, a *provenRecord, how string) (*tldRecord, error) {
+	rec := &tldRecord{TLD: tld, Root: a.root, How: how}
+	if a.value == nil {
 		return rec, nil // proven not to exist
 	}
-	state, err := decodeNameState(first.value)
+	state, err := decodeNameState(a.value)
 	if err != nil || state.name != tld {
 		return nil, fmt.Errorf("the proven value is not the state of %s", tld)
 	}

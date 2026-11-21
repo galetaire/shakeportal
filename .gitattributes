@@ -5,3 +5,4 @@ gradlew text eol=lf
 # Run inside Linux containers (build-go.sh) or by gofmt: Unix line endings
 *.sh text eol=lf
 *.go text eol=lf
+*.bin binary

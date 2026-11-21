@@ -1,7 +1,8 @@
 #!/bin/sh
 # Runs inside golang:1.26-alpine (started by build-go.ps1), with the repo at
 # /src. LIVE=1 also runs the tests that need the network; UPDATE=1 first
-# upgrades every Go dependency.
+# upgrades every Go dependency; CHECKPOINT=1 rebuilds go/checkpoint.bin
+# (the headers built into the app) from Handshake peers.
 set -e
 cd /src/go
 apk add --no-cache git >/dev/null
@@ -16,6 +17,14 @@ echo "ICANN TLDs: $count"
 
 if [ "$UPDATE" = 1 ]; then go get -u ./...; fi
 go mod tidy
+
+# The checkpoint is committed; making one downloads and checks ~130,000
+# headers from hsd's checkpoint at block 225000 to the tip (a few minutes)
+if [ "$CHECKPOINT" = 1 ] || [ ! -s checkpoint.bin ]; then
+  [ -e checkpoint.bin ] || : > checkpoint.bin
+  go run . -make-checkpoint checkpoint.bin.new
+  mv checkpoint.bin.new checkpoint.bin
+fi
 go vet ./...
 gofmt -l . | sed "s/^/needs gofmt: /"
 go test ./...
