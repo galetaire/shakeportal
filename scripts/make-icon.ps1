@@ -31,8 +31,18 @@ try {
     $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
     $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-    $height = [int]($art * $src.Height / $src.Width)
-    $g.DrawImage($src, [int](($canvas - $art) / 2), [int](($canvas - $height) / 2), $art, $height)
+    # Only the opaque square counts: transparent margins in the file (the
+    # artwork may be a few pixels taller than wide) would shift it off-centre.
+    # Found along the middle row and column, which the square crosses.
+    $midX = [int]($src.Width / 2); $midY = [int]($src.Height / 2)
+    $top = 0; while ($top -lt $src.Height - 1 -and $src.GetPixel($midX, $top).A -eq 0) { $top++ }
+    $bottom = $src.Height - 1; while ($bottom -gt $top -and $src.GetPixel($midX, $bottom).A -eq 0) { $bottom-- }
+    $left = 0; while ($left -lt $src.Width - 1 -and $src.GetPixel($left, $midY).A -eq 0) { $left++ }
+    $right = $src.Width - 1; while ($right -gt $left -and $src.GetPixel($right, $midY).A -eq 0) { $right-- }
+    $crop = New-Object System.Drawing.Rectangle $left, $top, ($right - $left + 1), ($bottom - $top + 1)
+    $height = [int]($art * $crop.Height / $crop.Width)
+    $dest = New-Object System.Drawing.Rectangle ([int](($canvas - $art) / 2)), ([int](($canvas - $height) / 2)), $art, $height
+    $g.DrawImage($src, $dest, $crop, [System.Drawing.GraphicsUnit]::Pixel)
     $g.Dispose()
     New-Item -ItemType Directory -Force (Split-Path -Parent $target) | Out-Null
     $bmp.Save($target, [System.Drawing.Imaging.ImageFormat]::Png)
