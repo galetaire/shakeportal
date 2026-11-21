@@ -1,8 +1,6 @@
-# ShakePortal
+# ShakePortal 🕳
 
-Handshake sites on your Android phone, away from home, checked with DANE:
-the app **ShakePortal** (formerly Fingertip), the phone counterpart of [Dit](https://github.com/galetaire/dit), in the
-spirit of Fingertip on the desktop.
+A Handshake resolver for Android, checked with DANE. The app **ShakePortal** is born following the spirit of [Fingertip](https://github.com/imperviousinc/fingertip) and [Dit](https://github.com/galetaire/dit).
 
 ## Why
 
@@ -88,27 +86,7 @@ a backup of both. A phone can't install a release build over a debug build
 
 [Zapstore](https://zapstore.dev/) lists the app from its GitHub releases;
 `zapstore.yaml` holds the listing (text, icon, screenshots,
-`CHANGELOG.md` for the release notes). Its tool, zsp, has no Windows build,
-so `.\scripts\zapstore.ps1` runs it in Docker (the image is built once,
-checked against zapstore.dev's SHA-256).
-
-For each release:
-
-1. Raise `versionCode` and `versionName` in `app/build.gradle.kts`, add the
-   version to `CHANGELOG.md`.
-2. `.\gradlew.bat assembleRelease`, then create a GitHub release `vX.Y.Z`
-   with `app-release.apk` attached as `ShakePortal-X.Y.Z-arm64-v8a.apk`.
-3. `.\scripts\zapstore.ps1 publish`. It asks for the Nostr signer
-   (`bunker://...` or `nsec1...`) unless `$env:SIGN_WITH` is set.
-
-Once, before the first publish: `.\scripts\zapstore.ps1` (no arguments)
-starts zsp's wizard to claim the app, linking the APK signing key to your
-Nostr key. It asks for the keystore: `/keys/shakeportal-release.p12`, with
-the password from `keystore.properties`. Do this yourself, not through an
-AI agent. `.\scripts\zapstore.ps1 check` shows what Zapstore sees.
-
-The icon: the artwork is `art/icon.png`; after changing it, run
-`.\scripts\make-icon.ps1` to rebuild the launcher icon from it, then build.
+`CHANGELOG.md` for the release notes).
 
 ## Notes
 
