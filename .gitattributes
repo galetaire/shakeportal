@@ -1,0 +1,4 @@
+# gradlew is a shell script: keep Unix line endings on Windows checkouts
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
