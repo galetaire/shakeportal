@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1] - 2026-11-21
+
+### Changed
+
+- New app icon.
+- Published under the MIT license.
+
 ## [0.3.0] - 2026-11-21
 
 First public release, as ShakePortal.

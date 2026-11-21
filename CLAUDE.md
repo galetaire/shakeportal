@@ -76,7 +76,7 @@ refreshed checkpoint.
   (github.com/galetaire/ShakePortal, created 21 Nov 2026 as fingertip-android, renamed the same day). Commit/push
   only when the owner asks.
 - Package `io.github.galetaire.shakeportal` (was io.github.galetaire.fingertip until 21 Nov 2026: a new id, so the old app must be uninstalled), app name **"ShakePortal"** (renamed from Fingertip 21 Nov 2026; icon from art/icon.png as an adaptive icon, rebuilt with scripts/make-icon.ps1; Save CA writes ShakePortal-CA.crt; new CAs are "ShakePortal DANE (phone)", an existing CA is kept with its old name "Fingertip DANE (phone)"), version
-  0.3.0 (versionCode 5), minSdk 29, targetSdk/compileSdk 35. No Android
+  0.3.1 (versionCode 6; 0.3.1 only changed the icon), minSdk 29, targetSdk/compileSdk 35. No Android
   libraries: framework + Kotlin only, UI built in code.
 - **Release signing (21 Nov 2026, for Zapstore):** keystore
   `C:\Users\Ismae\.shakeportal\shakeportal-release.p12` (PKCS12, alias
@@ -100,7 +100,7 @@ refreshed checkpoint.
   keystore password as an agent: zsp's own docs say the claim is done by
   hand. `zsp check <apk>` on the 0.3.0 release APK: ok, no warnings, next
   step "Prove the app is yours" (claim, requires_human). State 21 Nov 2026:
-  v0.3.0 GitHub release created; claim and first publish are the owner's.
+  0.3.0 published and listed on Zapstore 21 Nov 2026 (owner claimed it, proof valid to 20 Nov 2028; the preview page at localhost:17008 must be approved in the browser). 0.3.1 GitHub release prepared for the next publish.
 - **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
   off, Chrome sends every site through the VPN-set proxy and pages load. A
   VPN with only a narrow unused route is enough. (0.0.1 failed with
