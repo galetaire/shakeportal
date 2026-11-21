@@ -29,10 +29,11 @@ on Wi-Fi and mobile data alike, and Chrome honours it. The VPN tunnels
 nothing; it only carries the proxy setting. The proxy runs inside the app on
 the phone's loopback.
 
-## State: step 3 built (0.2.0), tested on the emulator, NOT yet on the phone
+## State: step 3 built and proven on the phone (0.2.0)
 
-Step 2 (0.1.0) is proven on the phone; step 3 (tree roots checked against
-synced block headers) is built and passed on the emulator.
+Steps 1–3 are proven on the phone (21 Nov 2026): on mobile data, Handshake
+sites load in Chrome, checked with DANE, with every tree root checked
+against block headers the phone synced and verified itself.
 
 - Repo: ~/Documents/GitHub/fingertip-android, branch main, public on GitHub
   (github.com/galetaire/fingertip-android, created 21 Nov 2026). Commit/push
@@ -204,8 +205,8 @@ DoH fallback; hnsdoh being down on 21 Nov 2026 led to this design.
    - the CA's fingerprint on screen, to compare with Settings;
    - QUIC: Chrome with a proxy uses TCP only, nothing to do; check other
      browsers.
-3. **Step 3 (built, 0.2.0; phone test pending): tree roots checked, not
-   agreed on.** Done as a mix of (b) and (c): headers from Handshake peers
+3. **Step 3 (done, proven on the phone 21 Nov 2026, 0.2.0): tree roots
+   checked, not agreed on.** Done as a mix of (b) and (c): headers from Handshake peers
    (short connections, getheaders only, no name queries), verified like
    hsd does, from a checkpoint built into the app. A root changes every 36
    blocks (~6 h); proofs anchor to the root ~8 days old (HIP-17's 32nd most
