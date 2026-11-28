@@ -77,7 +77,7 @@ refreshed checkpoint.
   (github.com/galetaire/ShakePortal, created 21 Nov 2026 as fingertip-android, renamed the same day). Commit/push
   only when the owner asks.
 - Package `io.github.galetaire.shakeportal` (was io.github.galetaire.fingertip until 21 Nov 2026: a new id, so the old app must be uninstalled), app name **"ShakePortal"** (renamed from Fingertip 21 Nov 2026; icon from art/icon.png as an adaptive icon, rebuilt with scripts/make-icon.ps1; Save CA writes ShakePortal-CA.crt; new CAs are "ShakePortal DANE (phone)", an existing CA is kept with its old name "Fingertip DANE (phone)"), version
-  0.3.1 (versionCode 6; 0.3.1 only changed the icon), minSdk 29, targetSdk/compileSdk 35. No Android
+  0.3.2 (versionCode 7; 0.3.1 changed the icon, 0.3.2 added plain-HTTP sites and the portal wording), minSdk 29, targetSdk/compileSdk 35. No Android
   libraries: framework + Kotlin only, UI built in code.
 - **Release signing (21 Nov 2026, for Zapstore):** keystore
   `C:\Users\Ismae\.shakeportal\shakeportal-release.p12` (PKCS12, alias

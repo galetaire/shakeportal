@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.2] - 2026-11-28
+
+### Added
+
+- Plain http:// Handshake sites now show in the site list, marked as not
+  encrypted (DANE only applies to HTTPS), or as failed with the reason.
+
+### Changed
+
+- The main button says Open portal / Close portal, and the status Portal
+  open / Portal closed.
+- A round logo at the top of the screen, and a new subtitle.
+
 ## [0.3.1] - 2026-11-21
 
 ### Changed
