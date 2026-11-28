@@ -101,7 +101,7 @@ refreshed checkpoint.
   keystore password as an agent: zsp's own docs say the claim is done by
   hand. `zsp check <apk>` on the 0.3.0 release APK: ok, no warnings, next
   step "Prove the app is yours" (claim, requires_human). State 21 Nov 2026:
-  0.3.0 published and listed on Zapstore 21 Nov 2026 (owner claimed it, proof valid to 20 Nov 2028; the preview page at localhost:17008 must be approved in the browser). 0.3.1 published the same day (owner ran zsp publish; check shows published_version_code 6).
+  0.3.0 published and listed on Zapstore 21 Nov 2026 (owner claimed it, proof valid to 20 Nov 2028; the preview page at localhost:17008 must be approved in the browser). 0.3.1 published the same day, 0.3.2 on 28 Nov 2026 (owner ran zsp publish; check shows published_version_code 7).
 - **Step 1 PROVEN (0.0.2, 21 Nov 2026, real phone):** on mobile data, Wi-Fi
   off, Chrome sends every site through the VPN-set proxy and pages load. A
   VPN with only a narrow unused route is enough. (0.0.1 failed with
