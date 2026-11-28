@@ -284,6 +284,7 @@ func main() {
 	log.Printf("listening on %s, on-chain records from %s", *listen, strings.Join(serviceList, ", "))
 
 	// No write timeout: CONNECT tunnels stay open as long as the browser needs
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 15 * time.Second}
+	// Plain http:// Handshake sites are reported too (plainhttp.go)
+	server := &http.Server{Handler: reportPlainHTTP(handler, isICANN, reporter.report), ReadHeaderTimeout: 15 * time.Second}
 	log.Fatal(server.Serve(listener))
 }

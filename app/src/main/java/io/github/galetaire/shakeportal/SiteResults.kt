@@ -37,7 +37,7 @@ object SiteResults {
 
     fun kind(status: String) = when (status) {
         "verified-sane", "verified" -> Kind.GOOD
-        "verified-unchecked" -> Kind.WARN
+        "verified-unchecked", "plain-http" -> Kind.WARN
         "refused", "failed" -> Kind.BAD
         else -> Kind.NEUTRAL
     }
@@ -55,6 +55,7 @@ object SiteResults {
         "verified-unchecked" -> "verified, but the tree root is not checked yet"
         "not-dane" -> "not a DANE site: passed through as it is"
         "unsigned" -> "TLSA not signed: passed through as it is"
+        "plain-http" -> "plain HTTP: loaded, but not encrypted"
         "refused" -> "refused"
         "failed" -> "failed"
         else -> status

@@ -120,11 +120,11 @@ class MainActivity : Activity() {
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(android.widget.ImageView(context).apply { setImageResource(R.mipmap.ic_launcher) },
+            addView(android.widget.ImageView(context).apply { setImageResource(R.drawable.logo) },
                 LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(12) })
             addView(text("ShakePortal", 30f, c.text, bold = true))
         })
-        addView(text("Handshake sites, checked with DANE, on Wi-Fi and mobile data", 14f, c.muted).apply {
+        addView(text("A portal into Handshake sites and the decentralized web", 14f, c.muted).apply {
             setPadding(0, dp(2), 0, 0)
         })
     }
@@ -200,11 +200,11 @@ class MainActivity : Activity() {
     private fun render() {
         val on = ProxyVpnService.running
         statusDot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) c.accent else c.muted) }
-        statusTitle.text = if (on) "On" else "Off"
+        statusTitle.text = if (on) "Portal open" else "Portal closed"
         statusText.text = if (on) "Handshake names go through the checking proxy (127.0.0.1:${ProxyVpnService.PROXY_PORT}). Other sites are untouched."
-        else "Tap Start, then open a Handshake site in Chrome, such as https://belikebill/"
+        else "Tap Open portal, then open a Handshake site in Chrome, such as https://belikebill/"
         styleButton(toggle, filled = !on)
-        toggle.text = if (on) "Stop" else "Start"
+        toggle.text = if (on) "Close portal" else "Open portal"
 
         val proxy = DaneProxy(this)
         val fingerprint = proxy.caFingerprint()
@@ -224,7 +224,7 @@ class MainActivity : Activity() {
         val needsInstall = installed != true
         caSteps.visibility = if (needsInstall) View.VISIBLE else View.GONE
         caSave.visibility = if (needsInstall && fingerprint != null) View.VISIBLE else View.GONE
-        caFingerprint.text = fingerprint?.chunked(48)?.joinToString("\n") ?: "Created on the first Start."
+        caFingerprint.text = fingerprint?.chunked(48)?.joinToString("\n") ?: "Created when the portal first opens."
 
         siteRows.removeAllViews()
         val sites = SiteResults.list()
@@ -374,7 +374,7 @@ class MainActivity : Activity() {
     private fun saveCa() {
         val ca = DaneProxy(this).caFile
         if (!ca.exists()) {
-            EventLog.add("No CA certificate yet: tap Start first, it is created on the first start")
+            EventLog.add("No CA certificate yet: tap Open portal first, it is created then")
             return
         }
         try {

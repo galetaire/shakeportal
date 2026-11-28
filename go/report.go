@@ -27,6 +27,7 @@ const (
 	siteUnsigned          = "unsigned"           // TLSA without DNSSEC: not used
 	siteRefused           = "refused"            // DNSSEC or certificate check failed
 	siteFailed            = "failed"             // not found or unreachable
+	// sitePlainHTTP ("plain-http") is in plainhttp.go
 )
 
 // A DNSSEC check that failed (as opposed to a network problem)

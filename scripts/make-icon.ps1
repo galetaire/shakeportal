@@ -1,4 +1,5 @@
-# Builds the app's launcher icon from the artwork in art/icon.png.
+# Builds the app's launcher icon from the artwork in art/icon.png, and the
+# logo shown at the top of the app's screen from art/icon2.png.
 #
 # art/icon.png is the full icon: a blue rounded square with the disc on it.
 # Android draws app icons in its own shape (circle, squircle, ...), so the
@@ -51,3 +52,24 @@ try {
     $src.Dispose()
 }
 Write-Output "Wrote $target from $source"
+
+# The logo at the top of the app's screen (44 dp, so at most 176 px) comes
+# from art/icon2.png, the round artwork, scaled down to 192 px
+$logoSource = Join-Path $root "art\icon2.png"
+$logoTarget = Join-Path $root "app\src\main\res\drawable-nodpi\logo.png"
+$size = 192
+$src = [System.Drawing.Image]::FromFile($logoSource)
+try {
+    $bmp = New-Object System.Drawing.Bitmap $size, $size
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $g.DrawImage($src, 0, 0, $size, $size)
+    $g.Dispose()
+    $bmp.Save($logoTarget, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+} finally {
+    $src.Dispose()
+}
+Write-Output "Wrote $logoTarget from $logoSource"

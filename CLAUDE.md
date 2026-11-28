@@ -55,7 +55,8 @@ refreshed checkpoint.
     TLSA check when it dials. Falls back to the nameserver path.
   - `report.go`: `@site <name> <status> <detail>` lines (statuses
     verified-sane, verified, verified-unchecked, not-dane, unsigned,
-    refused, failed), printed only on change; `bogusError` separates DNSSEC
+    refused, failed, and plain-http from `plainhttp.go`: plain http:// requests
+    to Handshake names, watched around letsdane's handler), printed only on change; `bogusError` separates DNSSEC
     failures (refused) from network ones (failed); a log filter turns
     letsdane's "[WARN] ... dane authentication failed" into "refused".
   - Tests: Dit's chain tests (nathan.woodburn, fixed date 20 Nov 2026),

@@ -41,14 +41,14 @@ data, but a **VPN app can set a system proxy** that applies everywhere
   constraints exclude every ICANN top-level domain, so it can never sign a
   certificate for gmail.com or a bank, even if its key leaked.
 
-While the headers are not synced yet (the first seconds after Start, or no
+While the headers are not synced yet (the first seconds after opening the portal, or no
 peer reachable), a root is accepted when the proof services agree on it, and
 the log says it was not checked.
 
 ## Use
 
 1. Copy `app-debug.apk` to the phone and install it.
-2. Open ShakePortal → **Start** → accept Android's VPN request.
+2. Open ShakePortal → **Open portal** → accept Android's VPN request.
 3. Once: tap **Save CA certificate**, then install it in Settings → Security
    & privacy → More security settings → Encryption & credentials → Install a
    certificate → CA certificate → `ShakePortal-CA.crt` (in Downloads).

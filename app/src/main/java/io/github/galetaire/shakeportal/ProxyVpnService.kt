@@ -63,7 +63,7 @@ class ProxyVpnService : VpnService() {
                 .setHttpProxy(ProxyInfo.buildDirectProxy("127.0.0.1", PROXY_PORT))
                 .establish()
             if (tunnel == null) {
-                EventLog.add("VPN not allowed: tap Start again and accept the VPN request")
+                EventLog.add("VPN not allowed: tap Open portal again and accept the VPN request")
                 shutDown()
             } else {
                 running = true
